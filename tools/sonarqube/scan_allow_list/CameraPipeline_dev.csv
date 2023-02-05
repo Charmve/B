@@ -1,0 +1,3 @@
+path_or_file,allow_list
+camera_core/include/base/xfile.h,fwrite
+camera_core/include/preprocess/image_warpper.hpp,fwrite

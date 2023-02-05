@@ -1,0 +1,3 @@
+path_or_file,allow_list
+library/localization,all
+src/json_include,all

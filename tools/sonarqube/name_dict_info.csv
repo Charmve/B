@@ -1,0 +1,76 @@
+reponame_branchname,first_module_name,second_module_name,project_name,continueOnError
+repo_zcy_branch_zcy,zcy_first,secondary_zcy,TianMaShan-L/TianMuShan,FALSE
+maf_perception_multi_target_tracking_utest,Perception & Fusion,Perception,TianMaShan-L,FALSE
+maf_perception_multi_target_tracking_xbw/utest,Perception & Fusion,Perception,TianMaShan-L/TianMuShan,FALSE
+parking_worldmodel_zhangcy/dev1,World Model,Parking World Model,TianMuShan,FALSE
+parking_worldmodel_zhangcy/dev2,World Model,Parking World Model,TianMuShan,FALSE
+mfruntime_dev,MFR,mfruntime,TianMaShan-L,FALSE
+mfruntime_master,MFR,mfruntime,TianMaShan-L,FALSE
+mlog_dev,MFC,mlog,TianMaShan-L,FALSE
+mlog_master,MFC,mlog,TianMaShan-L,FALSE
+mtaskflow_dev,MFC,mtaskflow,TianMaShan-L,FALSE
+mtaskflow_master,MFC,mtaskflow,TianMaShan-L,FALSE
+mtime_dev,MFC,mtime,TianMaShan-L,FALSE
+mtime_master,MFC,mtime,TianMaShan-L,FALSE
+mdlwrap_dev,MFC,mdlwrap,TianMaShan-L,FALSE
+mdlwrap_master,MFC,mdlwrap,TianMaShan-L,FALSE
+mjson_dev,MFC,mjson,TianMaShan-L,FALSE
+mjson_master,MFC,mjson,TianMaShan-L,FALSE
+mosadaptor_dev,MFC,mosadaptor,TianMaShan-L,FALSE
+mosadaptor_master,MFC,mosadaptor,TianMaShan-L,FALSE
+mmemory_dev,MFC,mmemory,TianMaShan-L,FALSE
+xaiver_vehicle_dev,Vehicle Service,xaiver_vehicle,TianMaShan-L,FALSE
+xaiver_vehicle_master,Vehicle Service,xaiver_vehicle,TianMaShan-L,FALSE
+x86_vehicle_dev,Vehicle Service,x86_vehicle,TianMaShan-L,FALSE
+x86_vehicle_master,Vehicle Service,x86_vehicle,TianMaShan-L,FALSE
+x86_sensor_service_maf2.2_mfr,Sensor Service,x86_sensor_service,TianMaShan-L,FALSE
+x87_sensor_service_maf2.0_mfr,Sensor Service,x87_sensor_service,TianMaShan-L,FALSE
+x88_sensor_service_maf2.1_v0.0.4,Sensor Service,x88_sensor_service,TianMaShan-L,FALSE
+xavier_sensor_dev,Sensor Service,xavier_sensor,TianMaShan-L,FALSE
+maf_camera_service_v3_camera,Cameral Service,maf_camera_service,TianMaShan-L,FALSE
+maf_camera_service_maf2.1_v0.0.x,Cameral Service,maf_camera_service,TianMaShan-L,FALSE
+maf_camera_service_calib_develop,Cameral Service,maf_camera_service,TianMaShan-L,FALSE
+nvidia_xavier_sensorservice_dev_ep2_halcamera,Camera Pipeline IPD,nvidia_xavier_sensorservice,TianMaShan-L,FALSE
+mlocs_dev,Localization,mlocs,TianMaShan-L,FALSE
+mlocs_dev_maf2.1_v0.0.4,Localization,mlocs,TianMaShan-L,FALSE
+mlocs_dev_maf2.2,Localization,mlocs,TianMaShan-L,FALSE
+mdk_develop,Map manager & Map Interface,mdk,TianMaShan-L,FALSE
+maf_egomotion_develop,Egomotion,maf_egomotion,TianMaShan-L,FALSE
+maf_egomotion_master,Egomotion,maf_egomotion,TianMaShan-L,FALSE
+egomotion_core_develop,Egomotion,egomotion_core,TianMaShan-L,FALSE
+egomotion_core_master,Egomotion,egomotion_core,TianMaShan-L,FALSE
+egopose_manager_dev,Egopose Manager,egopose_manager,TianMaShan-L,FALSE
+egopose_manager_maf2.0,Egopose Manager,egopose_manager,TianMaShan-L,FALSE
+egopose_manager_maf2.2,Egopose Manager,egopose_manager,TianMaShan-L,FALSE
+maf_plc_master,PLAC,maf_plc,TianMaShan-L,FALSE
+epica_master,PLAC,epica,TianMaShan-L,FALSE
+vista_maf2.2,vista,vista,TianMaShan-L,FALSE
+ace_maf2.2,ACE,ace,TianMaShan-L,FALSE
+parking_localization_release,Parking Localization,parking_localization,TianMaShan-L,FALSE
+mpa_dev,Camera Perception,mpa,TianMaShan-L,FALSE
+mcp-pipeline_dev,Camera Perception,mcp-pipeline,TianMaShan-L,FALSE
+adapter_dev,Static Environment Fusion,adapter,TianMaShan-L,FALSE
+adapter_master,Static Environment Fusion,adapter,TianMaShan-L,FALSE
+core_dev,Static Environment Fusion,core,TianMaShan-L,FALSE
+core_master,Static Environment Fusion,core,TianMaShan-L,FALSE
+maf_perception_multi_target_tracking_dev_msd,Object Fusion,maf_perception_multi_target_tracking,TianMaShan-L,FALSE
+maf_perception_multi_target_tracking_dev_highway,Object Fusion,maf_perception_multi_target_tracking,TianMaShan-L,FALSE
+maf_prediction_zehan/highway_release,Prediction,maf_prediction,TianMaShan-L,FALSE
+maf_worldmodel_maf2.1_v0.0.4,World Model(Highway),maf_worldmodel,TianMaShan-L,FALSE
+maf_worldmodel_maf2.2,World Model(Highway),maf_worldmodel,TianMaShan-L,FALSE
+parking_worldmodel_maf2.2,World Model(Parking),parking_worldmodel,TianMaShan-L,FALSE
+parking_worldmodel_dev,World Model(Parking),parking_worldmodel,TianMaShan-L,FALSE
+maf_planning_dev-mpilot,Planning,maf_planning,TianMaShan-L,FALSE
+maf_planning_dev-mpilot-maf2.2,Planning,maf_planning,TianMaShan-L,FALSE
+maf_controller_dev-mpilot,Controller,maf_controller,TianMaShan-L,FALSE
+maf_controller_dev-mpilot-maf2.2-base-master,Controller,maf_controller,TianMaShan-L,FALSE
+highway_system_manager_maf2.2,System Manager(Highway),highway_system_manager,TianMaShan-L,FALSE
+highway_system_manager_maf2.1_v0.0.4,System Manager(Highway),highway_system_manager,TianMaShan-L,FALSE
+parking_system_manager_dev,System Manager(Parking),parking_system_manager,TianMaShan-L,FALSE
+parking_system_manager_master,System Manager(Parking),parking_system_manager,TianMaShan-L,FALSE
+momenta_function_framework_dev,MFF,momenta_function_framework,TianMaShan-L,FALSE
+momenta_function_framework_master,MFF,momenta_function_framework,TianMaShan-L,FALSE
+momenta_function_framework_maf2.2_v2,MFF,momenta_function_framework,TianMaShan-L,FALSE
+mcamera_develop,mcamera,mcamera,TianMaShan-L,FALSE
+mcamera_master,mcamera,mcamera,TianMaShan-L,FALSE
+momenta_camera_master,momenta camera,momenta_camera,TianMaShan-L,FALSE

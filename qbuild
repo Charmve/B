@@ -1,0 +1,887 @@
+#!/bin/bash
+#########################################################
+# Function :Automated cross-platform execution tool     #
+# Platform :All Linux Based Platform                    #
+# Version  :1.0.0                                       #
+# Date     :2023-01-13                                  #
+# Author   :Wei ZHANG                                   #
+#########################################################
+
+set -euo pipefail
+
+QCRAFT_TOP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+QBUILD_TOP_DIR="$QCRAFT_TOP_DIR/qbuild"
+# shellcheck disable=SC1090
+source "${QCRAFT_TOP_DIR}/scripts/qcraft_base.sh"
+source "${QBUILD_TOP_DIR}/scripts/qbuild_base.sh"
+source "${QBUILD_TOP_DIR}/scripts/qbuild_utils.sh"
+
+MODULE_BINARY=""
+DIR_PATH=""
+PLATFORM=""
+X9HP_PASSWORD="qingzhou"  # as default, maybe another "qingzhou"
+DOCS_URL="https://qcraft.feishu.cn/docx/Vo6GdVCDqow0v5xX5RkcxBTXnQb"
+j5_bionic_container_name="j5"
+QBUILD_LOG_FILE="$QBUILD_TOP_DIR/tmp/qbuild_log.txt"
+QBUILD_FAILED_MANIFEST="$QBUILD_TOP_DIR/tmp/fail_manifest.txt"
+QBUILD_UNITTEST_REPORT="$QBUILD_TOP_DIR/result/qbuild_unittest_result.txt"
+QBUILD_RELEASE_DIR="$QBUILD_TOP_DIR/release"
+RELEASE_J5_BUILD="${QCRAFT_TOP_DIR}/docker/release/j5/BUILD"
+
+# failed_tests=()
+white_list=(
+  "mcu/forwarding/test/udp_test" \
+  "onboard/qlfs/tests/library/creator_test" \
+  "offboard/onb_sim/sensor_data_sim/test" \
+  "onboard/qlfs/tests/library/creator_test" 
+)
+
+declare -A failed_reasons
+failed_reasons=(["build_error"]="build error" ["run_error"]="error during run" ["deploy_error"]="error during deploy" ["other"]="other failed reason")
+
+function usage() {
+  cat << EOF
+USAGE:
+    qbuild <command> [options] [<arguments...>]
+
+VERSION:
+    1.0.0
+
+OPTIONS:
+    -i, --init              Make qbuild init
+    -b, --build             Build module, include unit test, benchmark single
+                            module and mutil-module
+    -it, --install          Make module package
+    -c, --connect           Connect to target platform easy, include real env and virtual env
+    -d, --deploy            Deploy module binary
+    -r, --run               Run module binary in mutil-platform
+    -u, --update            Update the sysroot by manaul
+    -f, --format            Format code in X-Comipler docker
+    -p, --pull              Pull file from arm-platform to local, like module 
+                            library or config file
+    -t, --test              Test module (only for qbuild SDEer)
+    -ut, --unittest         Debug unit test
+    -bm, --benchmark        Run benchmark to get report
+    -pf, --perf             Perf module performance
+    -co, --coverage         Give the coverage report in target platform
+    -sc, --sonarqube        Source code static analysis and security scan
+    -is, --issues           Pull issues about Qbuild to Onboard Infra
+    -cl, --clean            Clean QBuild cache
+    -v, --version           QBuild's version
+    -h, --help              Show this message and exit
+
+Run 'qbuild COMMAND' for more information on a command.
+
+Visit https://qcraft.feishu.cn/docx/Vo6GdVCDqow0v5xX5RkcxBTXnQb to get more information and push issues.
+EOF
+}
+
+function qbuild_init() {
+    info "qbuild: Start qbuild init ..."
+    pushd "${QCRAFT_TOP_DIR}" > /dev/null
+    sudo apt-get update
+    sudo apt install sshpass
+    sudo apt install bc
+ 
+    mv ~/.ssh/config ~/.ssh/config.old
+    cp -f "${QCRAFT_TOP_DIR}/qbuild/ssh_config" ~/.ssh/config
+    ssh-keygen -f "/home/qcraft/.ssh/known_hosts" -R "172.18.18.38"
+    ssh-keygen -f "/home/qcraft/.ssh/known_hosts" -R "192.168.5.212"
+
+    info "Install format code tools ..."
+    sudo "${QCRAFT_TOP_DIR}"/docker/dev/installers/install_shfmt.sh
+    sudo -H pip3 install --upgrade --no-cache-dir isort
+    sudo -H pip3 install --upgrade --no-cache-dir black
+    sudo "${QCRAFT_TOP_DIR}"/docker/dev/installers/install_shellcheck.sh
+
+    pip install google-cloud-bigquery
+    install_google_cli
+
+    sudo cp -f /qcraft/docker/dev/rcfiles/bazel_completion.bash /etc/bash_completion.d/bazel
+    # sudo cp -f /qcraft/qbuild/scripts/qbuild-complete.bash /etc/profile.d/bash_completion
+
+    touch $QBUILD_FAILED_MANIFEST && echo "" > $QBUILD_FAILED_MANIFEST
+    popd > /dev/null
+
+    ok "Successful! qbuild_init is finished."
+}
+
+function run_build_module() {
+    if [[ $# != 2 ]]; then
+        error "qbuild: '--build $@' is not a qbuild command. See 'qbuild --build'."
+        qbuild_usage --build
+        exit 1
+    fi
+
+    local platform=""
+    local build_modules=${2:-""}
+
+    if [[ $1 == *j5* ]]; then
+        platform="j5"
+    elif [[ $1 == *x9* ]]; then
+        platform="x9hp"
+    else
+        error "The input second param 'platform_name: $1' is invalid."
+        qbuild_usage --build
+        exit 1
+    fi
+
+    # grep -q ${build_modules##*/} $QBUILD_FAILED_MANIFEST && warning "${build_modules} build failed, will pass. \nYou can use 'qbuild -b $platform ${build_modules}' to build." && exit 1
+    
+    if [[ $build_modules == /qcraft* ]]; then
+        build_modules=${build_modules#*${build_modules:0:8}}
+    fi
+
+    if ! ${QCRAFT_TOP_DIR}/onboard/j5/build.sh $platform ${build_modules}; then
+        grep -q ${build_modules} $QBUILD_FAILED_MANIFEST && info "$build_modules already exit in $QBUILD_FAILED_MANIFEST" || echo ${build_modules} >> $QBUILD_FAILED_MANIFEST
+    fi
+}
+
+function connect_to_target_platform() {
+    local platform
+    if [ -z "$1" ]; then
+        # shellcheck disable=SC2162
+        read -p "Please input your choice (j5_1/j5_2/j5_v/x9hp, ref ssh_config): " platform
+    else
+        platform="$1"
+    fi
+
+    if [[ "$platform" == "j5_1" ]]; then
+        ssh $platform
+    elif [[ "$platform" == "j5_2" ]]; then
+        ssh $platform
+    elif [[ "$platform" == "j5_v" ]]; then
+        read -p "Will goto a virtual env docker container, use 'exit' to return. [yes/no] " option
+        if [ $option ]; then
+          if [[ $option == *y* ]]; then
+              docker exec -it $j5_bionic_container_name bash
+          elif [[ $option == *n* ]]; then
+              exit 1
+          else
+              warning "qbuild: yes or no is option."
+              exit 1
+          fi
+        fi
+    elif [[ "$platform" == "x9hp" ]]; then
+        sshpass -p "$X9HP_PASSWORD" ssh $platform
+    else
+        error "Input platform params '$@' is invalid. Please input your choice (j5_1/j5_2/j5_v/x9hp, ref ssh_config). \n"
+        exit 1
+    fi
+}
+
+function make_package() {
+  [ $1 ] && platform=$1 || exit 1
+  [ $2 ] && build_target_name=$(bazel query $2) MODULE_BINARY_NAME=$(basename $2) || exit 1
+
+  mv $RELEASE_J5_BUILD "$RELEASE_J5_BUILD"_bk
+
+  # RELEASE_J5_BUILD="build_test.txt"
+  cat >> "$RELEASE_J5_BUILD" << EOF
+load("//bazel/install:install.bzl", "install")
+
+package(default_visibility = ["//visibility:public"])
+
+install(
+    name = "qbuild_install",
+    targets = [
+        "$build_target_name",
+        # "//cyber/node:writer_reader_test",
+        # "//third_party/hobot_vio:hobot_vio_example",
+        # "//offboard/planner/snapshot:planner_runner_bm",
+        # "//onboard/lite:launch_autonomy_main",
+        # "//onboard/params/v2/tools:v2_txt_to_bin",
+        # "//onboard/qprod:launch_qprod_service_main",
+        # "//onboard/autonomy_service/server:autonomy_service_server_main",
+    ],
+)
+EOF
+  
+  local module_release_name=""${MODULE_BINARY_NAME}"_"$platform"_$(date "+%Y%m%d_%H%M%S")"
+  
+  if [[ "$1" == "j5" ]]; then
+      info "Install ${MODULE_BINARY_NAME} for $1 ..."
+      source "${QBUILD_TOP_DIR}/scripts/make_j5_release.sh"
+  elif [[ "$1" == "x9hp" ]]; then
+      info "Install ${MODULE_BINARY_NAME} for $1 ..."
+      source "${QBUILD_TOP_DIR}/scripts/make_x9hp_release.sh"
+  else
+      error "Platform $1 is not available!"
+      exit 1
+  fi
+
+  info "Save ${MODULE_BINARY_NAME} to '$QBUILD_RELEASE_DIR/$module_release_name.tar.gz'"
+  pushd "${QBUILD_RELEASE_DIR}" > /dev/null
+  if [ -e "$QBUILD_RELEASE_DIR" ]; then
+      tar -zcvf "$module_release_name.tar.gz" $QBUILD_RELEASE_DIR/$module_release_name
+  else 
+      error "qbuild: $QBUILD_RELEASE_DIR is not exist."
+      exit 1
+  fi
+  
+  popd > /dev/null
+
+  mv "$RELEASE_J5_BUILD"_bk $RELEASE_J5_BUILD
+  rm "$RELEASE_J5_BUILD"_bk
+}
+
+function deploy_module_in_lab() {
+    if [ $# == 2 ]; then
+        info "dir_path is null, will use /qcraft as default."
+    fi
+
+    if [[ $1 && $2 && $3 ]]; then
+        local src_file=${2:-"onboard/lite/launch_autonomy_main"}
+        local dir_path=${3:-"/qcraft"}
+        local TARGET_PLATFORM=${1:-""}
+
+        if [[ $src_file == /qcraft* ]]; then
+            src_file=${src_file#*${src_file:0:8}}
+        # elif [[ $src_file == ./* ]] || [[ ! -e $src_file ]]; then
+        elif [[ $src_file == ./* ]]; then
+    	    error "qbuild: $src_file is not available."
+            exit 1
+        elif [[ $src_file == *.* ]]; then
+            warning "cp or rsync file by: "
+            echo "    scp /qcraft/qbuild/examples/hiqcraft/readme.txt j5_1:/userdata"
+            echo "    docker cp /qcraft/qbuild/examples/hiqcraft/readme.txt j5:/qcraft/qbuild/examples/hiqcraft"
+            exit 1
+        fi
+
+        MODULE_BINARY="bazel-bin/$src_file"
+        MODULE_BINARY_NAME=${MODULE_BINARY##*/}
+        MODULE_BINARY_SUB_DIR=${src_file%${MODULE_BINARY_NAME}*}${src_file##*${MODULE_BINARY_NAME}}
+        DIR_PATH="/qcraft/$MODULE_BINARY_SUB_DIR"
+
+        # [ ! check_module_binary_lib $MODULE_BINARY ] && exit 1
+
+        info "[DEBUG] qbuild --deploy:"
+        echo "    - module_binary: $MODULE_BINARY"
+        echo "    - module_binary_sub_dir: $MODULE_BINARY_SUB_DIR"
+        echo "    - target_dir: $DIR_PATH"
+        echo "    - target_platform: $TARGET_PLATFORM"
+
+        if [[ "$1" == "j5_1" ]]; then
+            # ssh j5_1 "echo Hello, Im J5_1 there!"
+            TARGET_PLATFORM=$1
+            info "Deploy ${MODULE_BINARY} to ${TARGET_PLATFORM} at ${DIR_PATH}."
+            ssh j5_1 "mkdir -p ${DIR_PATH}"
+            scp -r ${MODULE_BINARY} ${TARGET_PLATFORM}:${DIR_PATH}
+        elif [ "$1" == "j5" ] || [ "$1" == "j5_2" ]; then
+            # ssh j5_2 "echo Hello, Im J5_2 there!"
+            TARGET_PLATFORM="j5_2"
+            info "Deploy ${MODULE_BINARY} to ${TARGET_PLATFORM} at ${DIR_PATH}."
+            ssh j5_2 "mkdir -p ${DIR_PATH}"
+            scp -r ${MODULE_BINARY} ${TARGET_PLATFORM}:${DIR_PATH}
+        elif [[ "$1" == "j5_v" ]]; then
+            # docker exec -it $j5_bionic_container_name echo Hello, Im virtual J5 there！
+            TARGET_PLATFORM="j5_v"
+            info "Deploy ${MODULE_BINARY} to ${TARGET_PLATFORM} at ${DIR_PATH}."
+            docker exec -it $j5_bionic_container_name mkdir -p ${DIR_PATH}
+            # scp -r ${MODULE_BINARY} ${TARGET_PLATFORM}:${DIR_PATH}
+            echo "docker cp ${MODULE_BINARY} $j5_bionic_container_name:${DIR_PATH}"
+            docker cp ${MODULE_BINARY} $j5_bionic_container_name:${DIR_PATH}
+            # docker cp bazel-bin/onboard/logging/logging_bm $j5_bionic_container_name:/userdata
+        elif [[ "$1" == "x9hp" ]]; then
+            TARGET_PLATFORM=$1
+            info "Deploy ${MODULE_BINARY} to ${TARGET_PLATFORM} at ${DIR_PATH}."
+            sshpass -p ${X9HP_PASSWORD} ssh x9hp "mkdir -p ${DIR_PATH}"
+            scp -r ${MODULE_BINARY} ${TARGET_PLATFORM}:${DIR_PATH}
+        else
+            warning "qbuild: '-d, --deploy' support j5_1/j5_2/j5_v/x9hp, $1 is not available."
+        fi
+    else
+        error "qbuild: '--deploy $@' is not a qbuild command. See 'qbuild --deploy'."
+        qbuild_usage --deploy
+        exit 1
+    fi
+}
+
+function pull_file_from_obc() {
+    declare -A qtb_map
+    qtb_map=(["tb1"]="qcraft@172.18.18.16" ["tb4"]="qcraft@172.18.18.38")
+
+    if [[ $# != 3 ]]; then
+        error "qbuild: '--pull $@' is not a qbuild command. See 'qbuild --pull'."
+        qbuild_usage --pull
+        exit 1
+    fi
+
+    if [[ $1 && $2 && $3 ]]; then
+        target_platform=$1
+        remote_path=$2
+        local_path=$3
+        info "target_platform: $target_platform," "remote_path: $remote_path," "local_path: $local_path"
+
+        if [[ $remote_path != /* ]]; then
+            error "Remote dir must be absolute path."
+            exit 1
+        fi
+        if [ $target_platform == "j5_1" ] || [ $target_platform == "j5_2" ] || [ $target_platform == "x9hp" ]; then
+            scp $target_platform:$remote_path $local_path
+        elif [ $target_platform == "j5_v" ]; then
+            docker cp $j5_bionic_container_name:$remote_path $local_path
+        else
+            error "$1 is not platform, j5_1/j5_2/j5_v/x9hp is aavailable."
+            exit 1
+        fi
+    elif [ ! $1 ]; then
+        error "$1 is not platform, j5_1/j5_2/j5_v/x9hp is aavailable."
+        exit 1
+    elif [[ ! $2  || $2 != /* ]]; then
+        error "The remote path $2 is not correct or null, which may not be absolute path."
+        exit 1
+    elif [ ! $3 ]; then
+        error "The local path $3 is not correct or null."
+        exit 1
+    else
+        error "qbuild --pull input params is invalid"
+        qbuild_usage --pull
+        exit 1
+    fi
+}
+
+function run_module_in_lab() {
+    local run_cmd=""
+    if [ "$2" ]; then
+        MODULE_BINARY=$2
+        info "[DEBUG] qbuild --run:"
+        echo "    - MODULE_BINARY: ${MODULE_BINARY}"
+        MODULE_BINARY_NAME=${MODULE_BINARY##*/}
+        echo "    - MODULE_BINARY_NAME: ${MODULE_BINARY_NAME}"
+        MODULE_BINARY_SUB_DIR=${MODULE_BINARY%${MODULE_BINARY_NAME}*}${MODULE_BINARY##*${MODULE_BINARY_NAME}}
+        echo "    - MODULE_BINARY_SUB_DIR: ${MODULE_BINARY_SUB_DIR}"
+        
+        run_module=$MODULE_BINARY
+        if [[ $run_module == /qcraft* ]]; then
+          run_module=${run_module#*${run_module:0:8}}
+        fi
+        run_cmd="cd /qcraft &&  ./${run_module}"
+        info "run command: ${run_cmd}"
+    else
+        error "Module name $2 is null or not available! Like '/qcraft/onboard/lite/launch_autonomy_main' is ok."
+        exit 1
+    fi
+
+    # is_in_white_list "$run_module" && warning "qbuild: $run_module need input params in runtime, will jump this time."
+    if [ $run_module == *mcu/forwarding/test/udp_test* ]; then
+        run_cmd="cd /qcraft &&  ./${run_module}"
+        warning "qbuild: $run_module need input params, will jump at this time."
+        exit 0
+    fi
+    
+    if [[ "$1" == "j5_1" ]]; then
+        info "Run ${MODULE_BINARY} in $1 ..."
+        # ssh j5_1 "echo Hello, Im J5_1 there!"
+        ssh j5_1 "$run_cmd"
+    elif [ "$1" == "j5" ] || [ "$1" == "j5_2" ]; then
+        info "Run ${MODULE_BINARY} in j5_2 ..."
+        # ssh j5_2 "echo Hello, Im J5_2 there!"
+        ssh j5_2 "$run_cmd"
+    elif [[ "$1" == "j5_v" ]]; then
+        info "Run ${MODULE_BINARY} in $1 ..."
+        #docker exec -it j5 bash -c "cd /qcraft/onboard/logging/ && ./logging_bm"
+        docker exec -it $j5_bionic_container_name bash -c "$run_cmd"
+    elif [[ "$1" == "x9hp" ]]; then
+        info "Run ${MODULE_BINARY} in $1 ..."
+        # sshpass -p ${X9HP_PASSWORD} ssh x9hp echo "Hello, I'm x9hp there!"  ## just for test
+        sshpass -p ${X9HP_PASSWORD} ssh x9hp "$run_cmd"
+    else
+        error "Platform $1 is not available!"
+        exit 1
+    fi
+}
+
+function qbuild_usage() {
+    local qbuild_option=$1
+
+    shift
+    case "${qbuild_option}" in
+      -b | --build)
+        cat << EOF 
+Usage: qbuild --build <target_platform> <module_name>
+
+   1. qbuild --build x9hp onboard/lite/launch_autonomy_main
+   2. qbuild --build x9hp qbuild/examples/hiqcraft/hiqcraft
+   3. qbuild --build j5 onboard/lite/launch_autonomy_main
+EOF
+        ;;
+      -it | --install)
+        cat << EOF 
+Usage: qbuild --install <target_platform> <module_name>
+
+   1. qbuild --install x9hp onboard/lite/launch_autonomy_main
+   2. qbuild --install x9hp qbuild/examples/hiqcraft/hiqcraft
+   3. qbuild --install j5 onboard/lite/launch_autonomy_main
+EOF
+        ;;
+      -c | --connect)
+        cat << EOF 
+Usage: qbuild --connect <target_platform> [<testbench_num>]
+
+   1. qbuild --connect x9hp
+   2. qbuild --connect j5_1
+   3. qbuild --connect j5_2
+   4. qbuild --connect j5_v
+EOF
+        ;;
+      -d | --deploy)
+        cat << EOF 
+Usage: qbuild --deploy <target_platform> <module_name_whale_dir> <option:target_platform_deploy_dir>
+
+   1. qbuild --deploy x9hp onboard/lite/launch_autonomy_main <option>/qcraft/onboard/lite
+   2. qbuild --deploy j5_1 onboard/lite/launch_autonomy_main <option>/qcraft/onboard/lite
+   3. qbuild --deploy j5_2 onboard/lite/launch_autonomy_main <option>/qcraft/onboard/lite
+EOF
+        ;;
+      -r | --run)
+        cat << EOF 
+Usage: qbuild --run <target_platform> <target_platform_binary_abstract_dir>
+
+   1. qbuild --run x9hp qbuild/examples/hiqcraft/hiqcraft
+   2. qbuild --run j5_1 onboard/lite/launch_autonomy_main
+   3. qbuild --run j5_2 onboard/lite/launch_autonomy_main
+   4. qbuild --run j5_v onboard/lite/launch_autonomy_main
+EOF
+        ;;
+      -p | --pull)
+        cat << EOF
+Usage: qbuild --pull <target_platform> <remote_file_path (absolute path)> <local_path> 
+
+   1. qbuild --pull x9hp qbuild/examples/hiqcraft/hiqcraft .
+   2. qbuild --pull j5_1 onboard/lite/launch_autonomy_main /qcraft
+   3. qbuild --pull j5_2 onboard/lite/launch_autonomy_main /qcraft/build
+EOF
+        ;;
+      -ut | --unittest)
+        cat << EOF
+Usage: qbuild --unittest <target_platform> <test_name>
+
+   1. qbuild --unittest j5 cyber/lite/lite_writer_reader_test
+   2. qbuild -ut j5 onboard/lite/module_config_test
+   3. qbuild -ut x9hp onboard/lite/lite_timer_test
+EOF
+        ;;
+      -bm | --benchmark)
+        cat << EOF
+Usage: qbuild --benchmark <target_platform> <benchmark_name>
+
+   1. qbuild --benchmark x9hp onboard/logging/logging_bm
+   2. qbuild --benchmark j5 onboard/logging/logging_bm
+EOF
+        ;;
+      -pf | --perf)
+        cat << EOF
+Usage: qbuild --perf <target_platform> <module_name>
+
+   1. qbuild --perf j5 onboard/lite/lite_timer
+EOF
+        ;;
+      -co | --coverage)
+        cat << EOF
+Usage: qbuild --coverage <target_platform> <test_dir>
+
+   1. qbuild --coverage j5 onboard/logging
+   2. qbuild -co j5 onboard/lite/service/
+   3. qbuild -co x9hp /qcraft/onboard/lite/service/
+EOF
+        ;;
+      -so | --sonarqube)
+        cat << EOF
+Usage: qbuild --sonarqube <scan_dir>
+
+   1. qbuild -sc /qcraft/onboard/lite
+EOF
+        ;;
+      -is | --issues)
+        cat << EOF
+Usage: qbuild --issues
+EOF
+        ;;
+      -h | --help)
+        usage
+        exit 0
+        ;;
+      *)
+        usage
+        exit 0
+        ;;
+  esac
+}
+
+function is_in_white_list() {
+  [ ! $1 ] && error "qbuild: input param is null." && exit 0
+
+  module_name=$1
+  for item_name in "${white_list[@]}"; do
+      if [[ "$module_name" =~ $item_name ]]; then
+          return 0
+      fi
+  done
+  return 1
+}
+
+function qbuild_run_module_binary() {
+    if [[ $# != 2 ]]; then
+        error "qbuild: '--run $@' is not a qbuild command. See 'qbuild --run'."
+        qbuild_usage --run
+        exit 1
+    fi
+
+    if [[ $1 && $2 ]]; then
+        platform=$1
+        module_name=$2
+
+        if [ -d "$module_name" ]; then
+            error "qbuild: $module_name must be a module name, not a dir.\n"
+            qbuild_usage --run
+            exit 1
+        elif [ ! -e "$module_name.cc" ]; then
+            error "qbuild: $module_name is not a unit test.\n"
+            qbuild_usage --run
+            exit 1
+        fi
+
+        is_in_white_list "$module_name" && warning "qbuild: $module_name need input params in runtime, will jump this time."
+
+        run_build_module $platform $module_name || exit 1
+        deploy_module_in_lab $platform "$module_name" "/qcraft"  # bazel-bin/*
+        # info "Deploy $module_name for $platform at /qcraft is OK!\n"
+        info "Start run $module_name at $platform"
+        run_module_in_lab $platform "$module_name" "/qcraft"
+    elif [ ! $1 ]; then
+        error "$1 is not platform, j5_1/j5_2/j5_v/x9hp is available."
+        exit 1
+    elif [ ! $2 ]; then
+        error "The module binary name $2 is not correct or null"
+        exit 1
+    else
+        error "qbuild: '--run $@' is not a qbuild command. See 'qbuild --run'."
+        qbuild_usage --run
+        exit 1
+    fi
+}
+
+function check_module_binary_lib() {
+    if [ ! $1 ]; then
+        error "The module binary name is null"
+        exit 1
+    fi
+
+    info "${1}'s dependency is: "
+    readelf -d $1
+    [ ldd $1 ] && ok "ldd $1 is OK" || readelf -d $1
+}
+
+function make_coverage_report() {
+    local platform=${1:-"j5"}
+    local prerun_dir=${2:-"${QCRAFT_TOP_DIR}/onboard"}
+
+    if [ -f $prerun_dir ] || [ ! -d $prerun_dir ]; then
+        error "Test dir must be a directory, not '$prerun_dir'."
+        exit 1
+    elif [ ! -e $prerun_dir ]; then
+        error "$prerun_dir is not exist."
+        exit 1
+    fi
+
+    local run_module=""
+    local total_test_count=0
+    local success_test_count=0
+    # local failed_test_count=0
+    local failed_tests=()
+    run_module_list_file="${QCRAFT_TOP_DIR}/qbuild/tmp/run_module_list.txt"
+    build_files="${QCRAFT_TOP_DIR}/qbuild/tmp/build_files.txt"
+    find $prerun_dir -name "BUILD" \
+      -not -path "/qcraft/release/*" \
+      -not -path "/qcraft/third_party/*" \
+      -not -path "/qcraft/experimental/*" \
+      -not -path "/qcraft/.cache/*" \
+      > $build_files
+    
+    for build_file in `cat $build_files`
+    do  
+        local tmp_item=""
+        info "Processing: $build_file"
+
+        grep -q '_test' $build_file && echo "$build_file has unit test." || continue
+        grep '_test"' $build_file | grep -q 'name' || continue  ## info "$build_file has no unit test." 
+        grep '_test"' $build_file | grep 'name' | awk -F '= "' '{print $2}' | awk -F '",' '{print $1}' | uniq -u > $run_module_list_file
+        
+        test_count=$(grep -c 'test' $run_module_list_file)
+
+        echo -e "\n==========================  Unit test list  ============================="
+        echo "- BUILD FILE: $build_file"
+        echo "- TEST_COUNT: $test_count"
+        cat $run_module_list_file
+        echo -e "=========================================================================\n"
+
+        total_test_count=$(expr $test_count + $total_test_count)
+
+        # success_test_count=0
+	      # failed_test_count=0
+        for run_module_name in `cat $run_module_list_file`
+        do
+            if [ $run_module_name ]; then # filter null line
+                run_module="${build_file%$"BUILD"*}${build_file##*$"BUILD"}""$run_module_name"
+
+                grep -q ${run_module##*/} $QBUILD_FAILED_MANIFEST && warning "${run_module} build failed, will pass. \nYou can use 'qbuild -b $platform ${run_module}' to build." && failed_tests+=("$run_module,${failed_reasons["build_error"]}") && continue
+
+                is_in_white_list "$run_module" && warning "qbuild: $run_module need input params in runtime, will jump this time." && break
+
+		info "Start qbuild unittest '$run_module'"
+                run_build_module $platform $run_module && ok "Build $run_module for $platform is OK!\n" || failed_tests+=("$run_module,${failed_reasons["build_error"]}")
+
+                deploy_module_in_lab $platform "$run_module" "/qcraft" && ok "Deploy $run_module for $platform is OK!\n"
+
+                info "Start run $run_module at $platform"
+                run_module_in_lab $platform "$run_module" "/qcraft" && success_test_count=$(expr $success_test_count + 1) || failed_tests+=("$run_module,${failed_reasons["build_error"]}")
+            fi
+            info "----> TOTAL_TEST_COUNT: $total_test_count"
+            info "----> SUCC_TEST_COUNT: $success_test_count"
+        done
+    done
+
+    coverage_result=`echo "scale=2; $success_test_count/$total_test_count*100" | bc` # float operate
+    
+    echo -e "\n"
+    ok " 🎉 SUCCESS! "
+    echo -e "       ✅ The unit test pass rate is ${BLUE}${BOLD}$coverage_result%${NO_COLOR} under '$prerun_dir'. TOTAL_TESTS: ${BOLD}$total_test_count${NO_COLOR}, PASSED_TESTS: ${GREEN}$success_test_count${NO_COLOR}, FAILED_TEST_COUNT: ${RED}$(expr $total_test_count - $success_test_count)${NO_COLOR}\n"  | tee -a $QBUILD_UNITTEST_REPORT
+
+    if [ ${#failed_tests[*]} -lt 1 ]; then
+        echo -e "Great! 💯\n"
+        exit 0
+    else
+      print_run_result_preview "${failed_tests[*]}" "$platform" | tee -a $QBUILD_UNITTEST_REPORT
+
+      # read -t 10 -p "${GREEN}qbuild: press <enter> to save this result to local, <ctrl-c> to console and quit. ${NO_COLOR}" option_key
+      # if [[ ! "$option_key" ]]; then
+      #     ok "Save this result to $QBUILD_UNITTEST_REPORT successful.\n"
+      #     exit 0
+      # else
+      #     rm -f $QBUILD_UNITTEST_REPORT
+      #     echo -e "\n"
+      # fi
+    fi
+    mv $QBUILD_FAILED_MANIFEST ""${QBUILD_FAILED_MANIFEST/.txt/}"_"$platform"_$(date "+%Y%m%d_%H%M%S").txt"
+    touch $QBUILD_FAILED_MANIFEST && echo "" > $QBUILD_FAILED_MANIFEST
+}
+
+function incremental_ut() {
+    echo "On branch ${GREEN}$(git rev-parse --abbrev-ref HEAD)${NO_COLOR}"
+    echo "Changes not staged for commit:"
+    git diff --ignore-submodules --diff-filter=d --name-only
+
+    run_increase_file2target
+}
+
+function make_perf_report() {
+    echo "Start perf test ..."
+}
+
+function sonarqube_scan() {
+    info "Start sonarqube scan ..."
+    scan_path=${1:-"/qcraft/onboard/lite/"}
+    python3 ${QCRAFT_TOP_DIR}/qbuild/tools/sonarqube/scan_forbidden_functions.py --path ${scan_path}
+}
+
+function format_code() {
+    ./scripts/format.sh $@
+}
+
+function qbuild_clean() {
+    rm -r $QBUILD_TOP_DIR/tmp/
+}
+
+function print_run_result_preview() {
+    if [[ ! $1 ]]; then
+    	echo "qbuild: '$@' input arguments is null."
+	    exit 1
+    fi
+
+    ARG_ITEMS=$1 
+    TARGET_PLAT=$2
+    local item_cnt=0
+    local reason="build error"
+
+    printf " ======.=====.=====.=====.=====.=====  ${GREEN}${BOLD} [QBuild] Failed Unit-test List for ${TARGET_PLAT} ${NO_COLOR}  ======.=====.=====.=====.=====.======\n"
+    printf "| ${WHITE}%-4s${NO_COLOR} | ${BOLD}%-86s${NO_COLOR} | ${RED}%-18s${NO_COLOR} |\n" " " "Failed Unit-test" "Failed Reason"
+    printf " %-108s \n" "--------------------------------------------------------------------------------------------------------------------"
+    for failed_test in "${failed_tests[@]}"; do # must use global var due to space
+      if [[ $failed_test != *,* ]]; then
+        error "Failed item $failed_test format is invalid, which should be separated with ',' like 'onboard/lite/lite_timer_test,build error'"
+        exit 1
+      fi
+
+      item_cnt=$(expr $item_cnt + 1)
+      _first=${failed_test%%,*}
+      _second=${failed_test##*,}
+      printf "| %-4s | %-86s | %-18s |\n" "$item_cnt" "$_first" "$_second"
+    done
+    printf " %-108s \n\n" "===.=====.=====.=====.=====.=====.=====.=====.=====.=====.=====.=====.=====.=====.=====.=====.=====.=====.=====.===="
+
+    echo -e "\n${WHITE}${BOLD}All done!${NO_COLOR} ✨ 🍰 ✨"
+    echo $(date)
+}
+
+function parse_cmdline_args() {
+  if [ $# -eq 0 ]; then
+    echo "🚀 Welcome to use QBuild!"
+    usage
+    exit 0
+  fi
+
+  while [[ $# -gt 0 ]]; do
+    local opt="$1"
+    shift
+    case "${opt}" in
+      -i | --init)
+        qbuild_init
+        ;;
+      -u | --update) 
+        sudo ${QCRAFT_TOP_DIR}/onboard/j5/envsetup.sh --update
+        ;;
+      -b | --build)
+        if [[ $# == 0 ]]; then
+            qbuild_usage --build
+            exit 1
+        fi
+        run_build_module $@
+        exit 0
+        ;;
+      -it | --install)
+        if [[ $# == 0 ]]; then
+            qbuild_usage --install
+            exit 1
+        fi
+        # warning "qbuild: '--install $@' feature is going ..." && exit 0
+        make_package $@
+        exit 0
+        ;;
+      -c | --connect)
+        if [[ $# == 0 ]]; then
+            qbuild_usage --connect
+            exit 1
+        fi
+        connect_to_target_platform $@
+        exit 0
+        ;;
+      -d | --deploy)
+        if [[ $# == 0 ]]; then
+            qbuild_usage --deploy
+            exit 1
+        fi
+        deploy_module_in_lab $@
+        exit 0
+        ;;
+      -r | --run)
+        if [[ $# == 0 ]]; then
+            qbuild_usage --run
+            exit 1
+        fi
+        qbuild_run_module_binary $@
+        exit 0
+        ;;
+      -p | --pull)
+        if [[ $# == 0 ]]; then
+            qbuild_usage --pull
+            exit 1
+        fi
+        pull_file_from_obc $@
+        exit 0
+        ;;
+      -t | --test)
+        echo "Start qbuild unit test ... "
+        cd $QBUILD_TOP_DIR/tests && ./qbuild_test.sh
+        exit 0
+        ;;
+      -ut | --unittest)
+        if [[ $# == 0 ]]; then
+            qbuild_usage --unittest
+            exit 1
+        fi
+        qbuild_run_module_binary $@
+        exit 0
+        ;;
+      -bm | --benchmark)
+        if [[ $# == 0 ]]; then
+            qbuild_usage --benchmark
+            exit 1
+        fi
+        qbuild_run_module_binary $@
+        exit 0
+        ;;
+      -co | --coverage)
+        if [[ $# == 0 ]]; then
+            qbuild_usage --coverage
+            exit 1
+        fi
+        # make_coverage_report $@ &> $QBUILD_LOG_FILE 
+        make_coverage_report $@ | tee -a $QBUILD_LOG_FILE 
+        exit 0
+        ;;
+      -pf | --perf)
+        if [[ $# == 0 ]]; then
+            qbuild_usage --perf
+            exit 1
+        fi
+        warning "qbuild: '--install $@' feature is going ..." && exit 0
+        make_perf_report $@
+        exit 0
+        ;;
+      -f | --format)
+        format_code $@
+        exit 0
+        ;;
+      -sc | --sonarqube)
+        if [[ $# == 0 ]]; then
+            qbuild_usage --sonarqube
+            exit 1
+        fi
+        sonarqube_scan $@
+        exit 0
+        ;;
+      -v | --version)
+        cat ${QCRAFT_TOP_DIR}/qbuild/.version
+        ;;
+      -is | --issues)
+        echo "python3 -m webbrowser $DOCS_URL"
+        python3 -m webbrowser $DOCS_URL
+        ;;
+      -cl | --clean)
+        qbuild_clean
+        exit 0
+        ;;
+      -h | --help)
+        usage
+        exit 0
+        ;;
+      *)
+        # usage
+        error "qbuild: '$opt' is not a qbuild command. See 'qbuild --help'."
+        exit 0
+        ;;
+    esac
+  done
+
+}
+
+function main() {
+
+  INODE_NUM=`ls -ali / | sed '2!d' | awk {'print $1'}`
+  if [ $INODE_NUM == '2' ]; then
+      error "qbuild: need run in qcraft_cross_compile_j5 docker container."
+      exit 1
+  else
+      echo "⛵ Hello QCrafter!"
+  fi
+
+  cd $QCRAFT_TOP_DIR #go /qcraft
+  
+  parse_cmdline_args "$@"
+
+  echo -e "\n${WHITE}${BOLD}All done!${NO_COLOR} ✨ 🍰 ✨"
+  echo $(date)
+}
+
+main "$@"

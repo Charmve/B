@@ -1,0 +1,1 @@
+{'Rule2 dynamic_memory check': ['malloc\\(', 'MALLOC\\(', 'malloc \\(', 'MALLOC \\(', 'free\\(', 'free \\(', '= new\\b', ' make_shared<', ' make_unique<'], 'Rule15 associated_containers check': ['\\.push_back\\(', '\\.insert\\(', '\\.push_front\\(', ' vector<', ' deque<', ' forward_list<', ' list<', 'set<', 'map<']}

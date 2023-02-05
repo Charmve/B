@@ -1,0 +1,10 @@
+global_options:
+  project_commit: 595a730
+  runs: 5
+  collect_profile: false
+  project_source: /path/to/project/repo
+units:
+ - bazel_binary: /usr/bin/bazel
+   command: --startup_option1 build --nomy_flag //:all
+ - bazel_binary: /usr/bin/bazel
+   command: --startup_option2 build --my_flag //:all

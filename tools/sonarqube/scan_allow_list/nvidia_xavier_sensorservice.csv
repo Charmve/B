@@ -1,0 +1,5 @@
+path_or_file,allow_list
+hal/sample/,all
+nvsipl/,all
+siplstream/hal_camera_src/,all
+src/core/sensor_service.cpp,ofstream
