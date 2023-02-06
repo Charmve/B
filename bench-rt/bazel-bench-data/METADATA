@@ -1,0 +1,33 @@
+{
+  "name": "project_label",
+  "command": "run",
+  "data_root": "https://{bucket}.storage.googleapis.com/{project_label}/{2023/02/05}",
+  "project_source": "bazel-bench-data",
+  "all_commits": [ "6dd9685b9e27874166a566a99beea5ff9d4f28d5", "593802403a709fa9fdfed10250d481cd62ff624b", "4c2fa78c084b86a16fcae059083f34053d5e88f9" ],
+  "benchmarked_commits": "6dd9685b9e27874166a566a99beea5ff9d4f28d5",
+  "platforms": [
+    {
+      "platform": "u18-x86",
+      "perf_data": "20230205035318.csv",
+      "aggr_json_profiles": "aggr_json_profiles.csv"
+    }, 
+    { 
+      "platform": "j5-arm",
+      "perf_data": "20230205035318.csv",
+      "aggr_json_profiles": "aggr_json_profiles.csv"
+    }
+  ],
+  "otherData": {
+    "build_id": "101bff9a-7243-4c1a-8503-9dc6ae4c3b05",
+    "date": "Wed Oct 26 08:22:35 CEST 2022",
+    "output_base": "/usr/local/google/_bazel_johndoe/573d4be77eaa72b91a3dfaa497bf8cd0"
+  },
+  "traceEvents": [
+    {"name":"thread_name","ph":"M","pid":1,"tid":0,"args":{"name":"Critical Path"}},
+    {"cat":"build phase marker","name":"Launch Blaze","ph":"X","ts":-1306000,"dur":1306000,"pid":1,"tid":21},
+    {"cat":"package creation","name":"foo","ph":"X","ts":2685358,"dur":784,"pid":1,"tid":246},
+    {"name":"thread_name","ph":"M","pid":1,"tid":11,"args":{"name":"Garbage Collector"}},
+    {"cat":"gc notification","name":"minor GC","ph":"X","ts":825986,"dur":11000,"pid":1,"tid":11},
+    {"cat":"action processing","name":"Compiling foo/bar.c","ph":"X","ts":54413389,"dur":357594,"pid":1,"args":{"mnemonic":"CppCompile"},"tid":341}
+  ]
+}

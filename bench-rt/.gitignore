@@ -20,7 +20,7 @@ __pycache__/
 utils/config.py
 
 # Bazel
-bazel-*
+# bazel-*
 
 # Python venv
 .venv/
