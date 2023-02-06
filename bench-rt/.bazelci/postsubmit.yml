@@ -1,0 +1,18 @@
+---
+tasks:
+  ubuntu1804:
+    include_json_profile:
+      - build
+      - test
+    build_targets:
+      - "//..."
+    test_targets:
+      - "//..."
+  macos:
+    include_json_profile:
+      - build
+      - test
+    build_targets:
+      - "//..."
+    test_targets:
+      - "//..."

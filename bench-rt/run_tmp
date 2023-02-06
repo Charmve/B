@@ -1,0 +1,5 @@
+bazel run :benchmark -- --bazel_commits=fffc26b5cc1bbe6c977af9971ed21e2e3d275d28,25be21130ba774e9f02cc39a010aafe64a3ab245 --project_source=/qcraft/ --project_commits=6dd9685b9e --data_directory=/tmp/bazel-bench-data --verbose --platform=x86 --project_label=dev-test  --collect_profile=True -- run  --verbose_failures //qbuild/examples/hiqcraft:hiqcraft
+
+exit 0
+
+bazel run report:generate_report --  --storage_bucket=0.0.0.0:8000/bazel-bench/bazel-bench-data --project=bazel-bench-data

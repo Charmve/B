@@ -1,0 +1,80 @@
+# gateway machine, don't use to do any real work
+Host suzhou_QTB0004
+    HostName 172.18.18.38 
+    User qcraft
+    IdentityFile ~/.ssh/id_ed25519
+
+# 工控机
+Host suzhou_QTB0004_x86
+    HostName 192.168.5.100
+    User qcraft
+    IdentityFile ~/.ssh/id_ed25519
+    ProxyCommand ssh suzhou_QTB0004 -W %h:%p 
+    
+Host drive_orin_2
+    HostName 192.168.5.97
+    User qcraft
+    IdentityFile ~/.ssh/id_ed25519
+    ProxyCommand ssh suzhou_QTB0004 -W %h:%p 
+
+Host drive_orin_1
+    HostName 192.168.5.96
+    User qcraft
+    IdentityFile ~/.ssh/id_ed25519
+    ProxyCommand ssh suzhou_QTB0004 -W %h:%p
+
+Host j5_1_4
+    HostName 192.168.5.210
+    User root
+    IdentityFile ~/.ssh/id_ed25519
+    ProxyCommand ssh suzhou_QTB0004 -W %h:%p
+
+Host j5_2_4
+    HostName 192.168.5.211
+    User root
+    IdentityFile ~/.ssh/id_ed25519
+    ProxyCommand ssh suzhou_QTB0004 -W %h:%p
+
+
+# gateway machine, don't use to do any real work
+Host suzhou_QTB0001
+    HostName 172.18.18.16 
+    User qcraft
+    IdentityFile ~/.ssh/id_ed25519
+
+# 工控机
+Host suzhou_QTB0001_x86
+    HostName 192.168.5.100
+    User qcraft
+    IdentityFile ~/.ssh/id_ed25519
+    ProxyCommand ssh suzhou_QTB0001 -W %h:%p 
+    
+Host drive_orin_1_2
+    HostName 192.168.5.97
+    User qcraft
+    IdentityFile ~/.ssh/id_ed25519
+    ProxyCommand ssh suzhou_QTB0001 -W %h:%p 
+
+Host drive_orin_1_1
+    HostName 192.168.5.96
+    User qcraft
+    IdentityFile ~/.ssh/id_ed25519
+    ProxyCommand ssh suzhou_QTB0001 -W %h:%p 
+
+Host j5_1
+    HostName 192.168.5.210
+    User root
+    IdentityFile ~/.ssh/id_ed25519
+    ProxyCommand ssh suzhou_QTB0001 -W %h:%p
+
+Host j5_2
+    HostName 192.168.5.211
+    User root
+    IdentityFile ~/.ssh/id_ed25519
+    ProxyCommand ssh suzhou_QTB0001 -W %h:%p
+
+Host x9hp
+    HostName 192.168.5.212
+    User root
+    IdentityFile ~/.ssh/id_ed25519
+    ProxyCommand ssh suzhou_QTB0001 -W %h:%p
