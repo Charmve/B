@@ -1,14 +1,16 @@
-# BenRT
+# BenchRT
 
-BenRT means benchmarking regression testting or benchmark runtime in real-world device.
+BenchRT means benchmarking regression testting or benchmark runtime in real-world device.
 
 
 
 ## Features
 
-QBuild
+- QBuild: provide run-time pipeline
+- support cross-platform, multi-platform
+- 
 
-## How to Use
+## Quick start
 
 ```
 ./scripts/start_cross_compile_docker.sh --project j5 --office suzhou
@@ -21,6 +23,8 @@ qbuild --help
 ```
 
 ## Usage
+
+### qbuild
 
 ```bash
 qcraft@SZ-zhangwei:/qcraft$ qbuild --help
@@ -51,6 +55,19 @@ OPTIONS:
     -v, --version           QBuild's version
     -h, --help              Show this message and exit
 ```
+
+
+### bench-rt
+
+cd bench-rt
+nohup python3 -m http.server >>/dev/null &
+export PATH=$PATH:$pwd/google-cloud-sdk/bin
+
+bazel run :benchmark -- --bazel_commits=fffc26b5cc1bbe6c977af9971ed21e2e3d275d28,25be21130ba774e9f02cc39a010aafe64a3ab245 --project_source=/qcraft/ --project_commits=6dd9685b9e --data_directory=/tmp/bazel-bench-data --verbose --platform=x86 --project_label=dev-test  --collect_profile=True --aggregate_json_profiles=True -- run  --verbose_failures //qbuild/examples/hiqcraft:hiqcraft
+
+bazel run report:generate_report --  --storage_bucket=0.0.0.0:8000/bench-rt/bazel-bench-data --project=bazel-bench-data
+
+
 
 ## Setup runtime environment
 docs: https://qcraft.feishu.cn/docx/X7pAdGBsloYTM5xZrIAcnmfpntg
