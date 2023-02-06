@@ -56,18 +56,18 @@ OPTIONS:
     -h, --help              Show this message and exit
 ```
 
-
 ### bench-rt
 
+```bash
 cd bench-rt
 nohup python3 -m http.server >>/dev/null &
-export PATH=$PATH:$pwd/google-cloud-sdk/bin
+export PATH=$PATH:$(pwd)/google-cloud-sdk/bin
 
 bazel run :benchmark -- --bazel_commits=fffc26b5cc1bbe6c977af9971ed21e2e3d275d28,25be21130ba774e9f02cc39a010aafe64a3ab245 --project_source=/qcraft/ --project_commits=6dd9685b9e --data_directory=/tmp/bazel-bench-data --verbose --platform=x86 --project_label=dev-test  --collect_profile=True --aggregate_json_profiles=True -- run  --verbose_failures //qbuild/examples/hiqcraft:hiqcraft
 
 bazel run report:generate_report --  --storage_bucket=0.0.0.0:8000/bench-rt/bazel-bench-data --project=bazel-bench-data
 
-
+```
 
 ## Setup runtime environment
 docs: https://qcraft.feishu.cn/docx/X7pAdGBsloYTM5xZrIAcnmfpntg
