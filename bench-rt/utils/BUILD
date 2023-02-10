@@ -1,3 +1,4 @@
+load("@rules_python//python:defs.bzl", "py_binary", "py_library", "py_test")
 load("@third_party//:requirements.bzl", "requirement")
 
 package(default_visibility = ["//visibility:public"])
@@ -89,7 +90,6 @@ py_binary(
     ],
 )
 
-
 py_binary(
     name = "qsutil_test",
     srcs = ["qsutil_test.py"],
@@ -101,7 +101,6 @@ py_binary(
         ":google-common",
     ],
 )
-
 
 py_binary(
     name = "json_profiles_merger",

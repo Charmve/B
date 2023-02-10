@@ -13,32 +13,33 @@
 # limitations under the License.
 """Utility module to handle logging for the benchmarking script."""
 import sys
+
 from absl import logging
 
 _COLOR_TMPL = {
-    'info': '\033[32m%s\033[0m',  # Green
-    'warn': '\033[33m%s\033[0m',  # Yellow
-    'error': '\033[31m%s\033[0m',  # Red
+    "info": "\033[32m%s\033[0m",  # Green
+    "warn": "\033[33m%s\033[0m",  # Yellow
+    "error": "\033[31m%s\033[0m",  # Red
 }
 
 
 def _maybe_colorize_text(text, color):
-  """Colorize the text if running on a terminal."""
-  if not sys.stdout.isatty():
-    return text
-  return _COLOR_TMPL[color] % text
+    """Colorize the text if running on a terminal."""
+    if not sys.stdout.isatty():
+        return text
+    return _COLOR_TMPL[color] % text
 
 
 def log(text):
-  """Logs a message using the logger singleton."""
-  logging.info(_maybe_colorize_text(text, 'info'))
+    """Logs a message using the logger singleton."""
+    logging.info(_maybe_colorize_text(text, "info"))
 
 
 def log_warn(text):
-  """Logs a warning message using the logger singleton."""
-  logging.warn(_maybe_colorize_text(text, 'warn'))
+    """Logs a warning message using the logger singleton."""
+    logging.warn(_maybe_colorize_text(text, "warn"))
 
 
 def log_error(text):
-  """Logs an error message using the logger singleton."""
-  logging.error(_maybe_colorize_text(text, 'error'))
+    """Logs an error message using the logger singleton."""
+    logging.error(_maybe_colorize_text(text, "error"))

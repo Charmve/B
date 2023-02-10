@@ -25,17 +25,19 @@ import argparse
 import collections
 import csv
 import datetime
-import json
 import io
+import json
 import os
-import sys
 import statistics
 import subprocess
+import sys
 import tempfile
 import urllib.request
-# from google.cloud import bigquery
 
 import utils.logger as logger
+
+# from google.cloud import bigquery
+
 
 TMP = tempfile.gettempdir()
 REPORTS_DIRECTORY = os.path.join(TMP, ".bazel_bench", "reports")
@@ -52,233 +54,243 @@ EVENTS_ORDER = [
 
 
 def _upload_to_storage(src_file_path, storage_bucket, destination_dir):
-  """Uploads the file from src_file_path to the specified location on Storage."""
-  args = [
-      "gsutil", "cp", src_file_path,
-      "gs://{}/{}".format(storage_bucket, destination_dir)
-  ]
-  print("_upload_to_storage - args: \n", args)
-  subprocess.run(args)
+    """Uploads the file from src_file_path to the specified location on Storage."""
+    args = [
+        "gsutil",
+        "cp",
+        src_file_path,
+        "gs://{}/{}".format(storage_bucket, destination_dir),
+    ]
+    print("_upload_to_storage - args: \n", args)
+    subprocess.run(args)
 
 
 def _load_csv_from_remote_file(http_url):
-  # print("====> csv - http_url:", http_url)
-  with urllib.request.urlopen(http_url) as resp:
-    reader = csv.DictReader(io.TextIOWrapper(resp))
-    return [row for row in reader]
+    # print("====> csv - http_url:", http_url)
+    with urllib.request.urlopen(http_url) as resp:
+        reader = csv.DictReader(io.TextIOWrapper(resp))
+        return [row for row in reader]
 
 
 def _load_json_from_remote_file(http_url):
-  # print("====> json - http_url:", http_url)
-  with urllib.request.urlopen(http_url) as resp:
-    data = resp.read()
-    print("====> json data: ", data)
-    encoding = resp.info().get_content_charset("utf-8")
-    return json.loads(data)
-    # return json.loads(data.decode(encoding))
+    # print("====> json - http_url:", http_url)
+    with urllib.request.urlopen(http_url) as resp:
+        data = resp.read()
+        print("====> json data: ", data)
+        encoding = resp.info().get_content_charset("utf-8")
+        return json.loads(data)
+        # return json.loads(data.decode(encoding))
 
 
 def x_load_json_from_remote_file(url):
-  # print("====> csv - http_url:", url)
-  resp = urllib.request.urlopen(url)
-  ele_json = json.loads(resp.read())
-  print("====> json data: ", ele_json)
-  return ele_json
+    # print("====> csv - http_url:", url)
+    resp = urllib.request.urlopen(url)
+    ele_json = json.loads(resp.read())
+    print("====> json data: ", ele_json)
+    return ele_json
+
 
 def _load_txt_from_remote_file(http_url):
-  print("====> txt - http_url:", http_url)
-  with urllib.request.urlopen(http_url) as resp:
-    return resp.read().decode(resp.headers.get_content_charset() or "utf-8")
+    print("====> txt - http_url:", http_url)
+    with urllib.request.urlopen(http_url) as resp:
+        return resp.read().decode(resp.headers.get_content_charset() or "utf-8")
 
 
 def _load_csv_from_local_file(csv_file_path):
-  print("====> csv_file_path:", csv_file_path)
-  with open(csv_file_path, newline='') as f:
-    spamreader = csv.reader(f, delimiter=' ', quotechar='|')
-    return [row for row in spamreader]
+    print("====> csv_file_path:", csv_file_path)
+    with open(csv_file_path, newline="") as f:
+        spamreader = csv.reader(f, delimiter=" ", quotechar="|")
+        return [row for row in spamreader]
 
 
 def _load_json_from_local_file(json_file_path):
-  print("====> json_file_path:", json_file_path)
-  with open(json_file_path, "r") as f:
-    data = json.load(f.read())
-    print("--- TEMPP data:", data)
-    return [item for item in data]
+    print("====> json_file_path:", json_file_path)
+    with open(json_file_path, "r") as f:
+        data = json.load(f.read())
+        print("--- TEMPP data:", data)
+        return [item for item in data]
 
 
 def _load_txt_from_local_file(txt_file_path):
-  print("====> txt_file_path:", txt_file_path)
-  with open(txt_file_path, "r") as f:
-    return f.read()
+    print("====> txt_file_path:", txt_file_path)
+    with open(txt_file_path, "r") as f:
+        return f.read()
 
 
 def _get_storage_url(storage_bucket, dated_subdir):
-  # In this case, the storage_bucket is a Domain-named bucket.
-  # https://cloud.google.com/storage/docs/domain-name-verification
-  return "http://{}/{}".format(storage_bucket, dated_subdir)
+    # In this case, the storage_bucket is a Domain-named bucket.
+    # https://cloud.google.com/storage/docs/domain-name-verification
+    return "http://{}/{}".format(storage_bucket, dated_subdir)
 
 
 def _get_dated_subdir_for_project(project, date):
-  return "{}/{}".format(project, date.strftime("%Y/%m/%d"))
+    return "{}/{}".format(project, date.strftime("%Y/%m/%d"))
 
 
 def _get_bazel_github_a_component(commit):
-  return '<a href="{}">{}</a>'.format(
-      "https://github.com/bazelbuild/bazel/commit/" + commit, commit)
+    return '<a href="{}">{}</a>'.format(
+        "https://github.com/bazelbuild/bazel/commit/" + commit, commit
+    )
 
 
 def _get_file_list_from_gs(bucket_name, gs_subdir):
-  args = ["gsutil", "ls", "gs://{}/{}".format(bucket_name, gs_subdir)]
-  command_output = subprocess.check_output(args)
-  # The last element is just an empty string.
-  decoded = command_output.decode("utf-8").split("\n")[:-1]
+    args = ["gsutil", "ls", "gs://{}/{}".format(bucket_name, gs_subdir)]
+    command_output = subprocess.check_output(args)
+    # The last element is just an empty string.
+    decoded = command_output.decode("utf-8").split("\n")[:-1]
 
-  return [line.strip("'").replace("gs://", "https://") for line in decoded]
+    return [line.strip("'").replace("gs://", "https://") for line in decoded]
 
 
 def _get_file_list_component(bucket_name, dated_subdir, platform):
-  gs_subdir = "{}/{}".format(dated_subdir, platform)
-  links = _get_file_list_from_gs(bucket_name, gs_subdir)
-  li_components = [
-      '<li><a href="{}">{}</a></li>'.format(link, os.path.basename(link))
-      for link in links
-  ]
-  return """
+    gs_subdir = "{}/{}".format(dated_subdir, platform)
+    links = _get_file_list_from_gs(bucket_name, gs_subdir)
+    li_components = [
+        '<li><a href="{}">{}</a></li>'.format(link, os.path.basename(link))
+        for link in links
+    ]
+    return """
 <div class="collapse" id="raw_files_{}">
 <ul>{}</ul>
 </div>
-""".format(platform, "\n".join(li_components))
+""".format(
+        platform, "\n".join(li_components)
+    )
 
 
 def _get_proportion_breakdown(aggr_json_profile):
-  bazel_commit_to_phases = {}
-  for entry in aggr_json_profile:
-    bazel_commit = entry["bazel_source"]
-    if bazel_commit not in bazel_commit_to_phases:
-      bazel_commit_to_phases[bazel_commit] = []
-    bazel_commit_to_phases[bazel_commit].append({
-        "name": entry["name"],
-        "dur": entry["dur"]
-    })
+    bazel_commit_to_phases = {}
+    for entry in aggr_json_profile:
+        bazel_commit = entry["bazel_source"]
+        if bazel_commit not in bazel_commit_to_phases:
+            bazel_commit_to_phases[bazel_commit] = []
+        bazel_commit_to_phases[bazel_commit].append(
+            {"name": entry["name"], "dur": entry["dur"]}
+        )
 
-  bazel_commit_to_phase_proportion = {}
-  for bazel_commit in bazel_commit_to_phases.keys():
-    total_time = sum(
-        [float(entry["dur"]) for entry in bazel_commit_to_phases[bazel_commit]])
-    bazel_commit_to_phase_proportion[bazel_commit] = {
-        entry["name"]: float(entry["dur"]) / total_time
-        for entry in bazel_commit_to_phases[bazel_commit]
-    }
+    bazel_commit_to_phase_proportion = {}
+    for bazel_commit in bazel_commit_to_phases.keys():
+        total_time = sum(
+            [float(entry["dur"]) for entry in bazel_commit_to_phases[bazel_commit]]
+        )
+        bazel_commit_to_phase_proportion[bazel_commit] = {
+            entry["name"]: float(entry["dur"]) / total_time
+            for entry in bazel_commit_to_phases[bazel_commit]
+        }
 
-  return bazel_commit_to_phase_proportion
+    return bazel_commit_to_phase_proportion
 
 
 def _fit_data_to_phase_proportion(reading, proportion_breakdown):
-  result = []
-  for phase in EVENTS_ORDER:
-    if phase not in proportion_breakdown:
-      result.append(0)
-    else:
-      result.append(reading * proportion_breakdown[phase])
-  return result
+    result = []
+    for phase in EVENTS_ORDER:
+        if phase not in proportion_breakdown:
+            result.append(0)
+        else:
+            result.append(reading * proportion_breakdown[phase])
+    return result
 
 
 def _short_form(commit):
-  return commit[:7]
+    return commit[:7]
 
 
 def _prepare_data_for_graph(performance_data, aggr_json_profile):
-  """Massage the data to fit a format suitable for graph generation."""
-  bazel_commit_to_phase_proportion = _get_proportion_breakdown(
-      aggr_json_profile)
-  ordered_commit_to_readings = collections.OrderedDict()
-  for entry in performance_data:
-    # Exclude measurements from failed runs in the graphs.
-    # TODO(leba): Print the summary table, which includes info on which runs
-    # failed.
-    if entry["exit_status"] != "0":
-      continue
+    """Massage the data to fit a format suitable for graph generation."""
+    bazel_commit_to_phase_proportion = _get_proportion_breakdown(aggr_json_profile)
+    ordered_commit_to_readings = collections.OrderedDict()
+    for entry in performance_data:
+        # Exclude measurements from failed runs in the graphs.
+        # TODO(leba): Print the summary table, which includes info on which runs
+        # failed.
+        if entry["exit_status"] != "0":
+            continue
 
-    bazel_commit = entry["bazel_commit"]
-    if bazel_commit not in ordered_commit_to_readings:
-      ordered_commit_to_readings[bazel_commit] = {
-          "bazel_commit": bazel_commit,
-          "wall_readings": [],
-          "memory_readings": [],
-      }
-    ordered_commit_to_readings[bazel_commit]["wall_readings"].append(
-        float(entry["wall"]))
-    ordered_commit_to_readings[bazel_commit]["memory_readings"].append(
-        float(entry["memory"]))
+        bazel_commit = entry["bazel_commit"]
+        if bazel_commit not in ordered_commit_to_readings:
+            ordered_commit_to_readings[bazel_commit] = {
+                "bazel_commit": bazel_commit,
+                "wall_readings": [],
+                "memory_readings": [],
+            }
+        ordered_commit_to_readings[bazel_commit]["wall_readings"].append(
+            float(entry["wall"])
+        )
+        ordered_commit_to_readings[bazel_commit]["memory_readings"].append(
+            float(entry["memory"])
+        )
 
-  wall_data = [
-      ["Bazel Commit"] + EVENTS_ORDER +
-      ["Median [Min, Max]", {
-          "role": "interval"
-      }, {
-          "role": "interval"
-      }]
-  ]
-  memory_data = [[
-      "Bazel Commit", "Memory (MB)", {
-          "role": "interval"
-      }, {
-          "role": "interval"
-      }
-  ]]
+    wall_data = [
+        ["Bazel Commit"]
+        + EVENTS_ORDER
+        + ["Median [Min, Max]", {"role": "interval"}, {"role": "interval"}]
+    ]
+    memory_data = [
+        ["Bazel Commit", "Memory (MB)", {"role": "interval"}, {"role": "interval"}]
+    ]
 
-  for obj in ordered_commit_to_readings.values():
-    commit = _short_form(obj["bazel_commit"])
+    for obj in ordered_commit_to_readings.values():
+        commit = _short_form(obj["bazel_commit"])
 
-    median_wall = statistics.median(obj["wall_readings"])
-    min_wall = min(obj["wall_readings"])
-    max_wall = max(obj["wall_readings"])
-    wall_data.append([commit] + _fit_data_to_phase_proportion(
-        median_wall, bazel_commit_to_phase_proportion[bazel_commit]) +
-                     [median_wall, min_wall, max_wall])
+        median_wall = statistics.median(obj["wall_readings"])
+        min_wall = min(obj["wall_readings"])
+        max_wall = max(obj["wall_readings"])
+        wall_data.append(
+            [commit]
+            + _fit_data_to_phase_proportion(
+                median_wall, bazel_commit_to_phase_proportion[bazel_commit]
+            )
+            + [median_wall, min_wall, max_wall]
+        )
 
-    median_memory = statistics.median(obj["memory_readings"])
-    min_memory = min(obj["memory_readings"])
-    max_memory = max(obj["memory_readings"])
-    memory_data.append([commit, median_memory, min_memory, max_memory])
+        median_memory = statistics.median(obj["memory_readings"])
+        min_memory = min(obj["memory_readings"])
+        max_memory = max(obj["memory_readings"])
+        memory_data.append([commit, median_memory, min_memory, max_memory])
 
-  return wall_data, memory_data
+    return wall_data, memory_data
 
 
 def _uncollapse_button(element_id, text):
-  return """
+    return """
 <button class="btn btn-outline-primary btn-sm" type="button" data-toggle="collapse"
         data-target="#{element_id}" aria-expanded="false"
         aria-controls="{element_id}" style="margin-bottom: 5px;">
 {text}
 </button>
 """.format(
-    element_id=element_id, text=text)
+        element_id=element_id, text=text
+    )
 
 
 def _row_component(content):
-  return """
+    return """
 <div class="row">{content}</div>
-""".format(content=content)
+""".format(
+        content=content
+    )
 
 
 def _col_component(col_class, content):
-  return """
+    return """
 <div class="{col_class}">{content}</div>
 """.format(
-    col_class=col_class, content=content)
+        col_class=col_class, content=content
+    )
 
 
 def _commits_component(full_list, benchmarked_list):
-  li_components = []
-  for commit in full_list:
-    if commit in benchmarked_list:
-      li_components.append("<li><b>{}</b></li>".format(
-          _get_bazel_github_a_component(commit)))
-    else:
-      li_components.append("<li>{}</li>".format(
-          _get_bazel_github_a_component(commit)))
-  return """
+    li_components = []
+    for commit in full_list:
+        if commit in benchmarked_list:
+            li_components.append(
+                "<li><b>{}</b></li>".format(_get_bazel_github_a_component(commit))
+            )
+        else:
+            li_components.append(
+                "<li>{}</li>".format(_get_bazel_github_a_component(commit))
+            )
+    return """
 <div class="collapse" id="commits">
 <b>Commits:</b>
 <ul>
@@ -286,17 +298,19 @@ def _commits_component(full_list, benchmarked_list):
 </ul>
 </div>
 <br>
-""".format("\n".join(li_components))
+""".format(
+        "\n".join(li_components)
+    )
 
 
 def _single_graph(metric, metric_label, data, platform, median_series=None):
-  """Returns the HTML <div> component of a single graph."""
-  title = "[{}] Bar Chart of {} vs Bazel commits".format(platform, metric_label)
-  hAxis = "Bazel Commits (chronological order)"
-  vAxis = metric_label
-  chart_id = "{}-{}".format(platform, metric)
+    """Returns the HTML <div> component of a single graph."""
+    title = "[{}] Bar Chart of {} vs Bazel commits".format(platform, metric_label)
+    hAxis = "Bazel Commits (chronological order)"
+    vAxis = metric_label
+    chart_id = "{}-{}".format(platform, metric)
 
-  return """
+    return """
 <script type="text/javascript">
   google.charts.setOnLoadCallback(drawChart);
   function drawChart() {{
@@ -333,32 +347,33 @@ def _single_graph(metric, metric_label, data, platform, median_series=None):
 </script>
 <div id="{chart_id}" style="min-height: 400px"></div>
 """.format(
-    title=title,
-    data=data,
-    hAxis=hAxis,
-    vAxis=vAxis,
-    chart_id=chart_id,
-    median_series=median_series)
+        title=title,
+        data=data,
+        hAxis=hAxis,
+        vAxis=vAxis,
+        chart_id=chart_id,
+        median_series=median_series,
+    )
 
 
 def _historical_graph(metric, metric_label, data, platform, color):
-  """Returns the HTML <div> component of a single graph."""
-  title = "[{}] Historical values of {}".format(platform, metric_label)
-  hAxis = "Date (commmit)"
-  vAxis = metric_label
-  chart_id = "{}-{}-time".format(platform, metric)
+    """Returns the HTML <div> component of a single graph."""
+    title = "[{}] Historical values of {}".format(platform, metric_label)
+    hAxis = "Date (commmit)"
+    vAxis = metric_label
+    chart_id = "{}-{}-time".format(platform, metric)
 
-  # Set viewWindow margins.
-  minVal = sys.maxsize
-  maxVal = 0
-  # print("====> data: ", data)
-  for row in data[1:]:
-    minVal = min(minVal, row[2])
-    maxVal = max(maxVal, row[3])
-  viewWindowMin = minVal * 0.95
-  viewWindowMax = maxVal * 1.05
+    # Set viewWindow margins.
+    minVal = sys.maxsize
+    maxVal = 0
+    # print("====> data: ", data)
+    for row in data[1:]:
+        minVal = min(minVal, row[2])
+        maxVal = max(maxVal, row[3])
+    viewWindowMin = minVal * 0.95
+    viewWindowMax = maxVal * 1.05
 
-  return """
+    return """
 <script type="text/javascript">
   google.charts.setOnLoadCallback(drawChart);
   function drawChart() {{
@@ -398,29 +413,32 @@ def _historical_graph(metric, metric_label, data, platform, color):
   </script>
 <div id="{chart_id}" style="min-height: 400px"></div>
 """.format(
-    title=title,
-    data=data,
-    hAxis=hAxis,
-    vAxis=vAxis,
-    chart_id=chart_id,
-    viewWindowMin=viewWindowMin,
-    viewWindowMax=viewWindowMax,
-    color=color)
+        title=title,
+        data=data,
+        hAxis=hAxis,
+        vAxis=vAxis,
+        chart_id=chart_id,
+        viewWindowMin=viewWindowMin,
+        viewWindowMax=viewWindowMax,
+        color=color,
+    )
 
 
 def _summary_table(content, platform):
-  """Returns the HTML <div> component of the summary table."""
-  return """
+    """Returns the HTML <div> component of the summary table."""
+    return """
 <pre class="collapse" id="summary-{platform}"  style="font-size:0.75em; color:gray">{content}</pre>
 <br>
 """.format(
-    platform=platform, content=content)
+        platform=platform, content=content
+    )
 
 
-def _full_report(project, project_source, date, command, graph_components,
-                 raw_files_components):
-  """Returns the full HTML of a complete report, from the graph components."""
-  return """
+def _full_report(
+    project, project_source, date, command, graph_components, raw_files_components
+):
+    """Returns the full HTML of a complete report, from the graph components."""
+    return """
 <html>
   <head>
     <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
@@ -470,7 +488,7 @@ def _full_report(project, project_source, date, command, graph_components,
                 return date < latestReportDate;
               }}
           }});
-          
+
           $('#viewReportButton').on('click', function () {{
             var dateSubdir = $datePicker.value();
             var url = `https://perf.bazel.build/{project}/${{dateSubdir}}/report.html`;
@@ -492,12 +510,14 @@ def _full_report(project, project_source, date, command, graph_components,
   </body>
 </html>
 """.format(
-    project=project,
-    project_source=project_source,
-    date=date.strftime("%Y/%m/%d"),
-    command=command,
-    graphs=graph_components,
-    files=raw_files_components)
+        project=project,
+        project_source=project_source,
+        date=date.strftime("%Y/%m/%d"),
+        command=command,
+        graphs=graph_components,
+        files=raw_files_components,
+    )
+
 
 '''
 def _query_bq(bq_project, bq_table, project_source, date_cutoff, platform):
@@ -555,259 +575,294 @@ ORDER BY report_date ASC;
   return bq_client.query(query)
 '''
 
+
 def _prepare_time_series_fake_data():
-  """Massage the data to fit a format suitable for graph generation."""
-  wall_data = [[
-      "Date", "Wall Time", {
-          "role": "interval"
-      }, {
-          "role": "interval"
-      }
-  ]]
-  memory_data = [["Date", "Memory", {"role": "interval"}, {"role": "interval"}]]
+    """Massage the data to fit a format suitable for graph generation."""
+    wall_data = [["Date", "Wall Time", {"role": "interval"}, {"role": "interval"}]]
+    memory_data = [["Date", "Memory", {"role": "interval"}, {"role": "interval"}]]
 
-  fake_wall_data = [
-    ["20230204 (2787416)", 51.538, 49.210, 51.212], # wall_data
-    ["20230204 (2787416)", 136.02, 136.00, 136.02], # memory_data
-    ["20230205 (9beea5f)", 52.321, 49.370, 50.612], # wall_data
-    ["20230205 (9beea5f)", 136.65, 136.00, 133.02], # memory_data
-    ["20230205 (a5f66a9)", 51.765, 45.123, 52.814],
-    ["20230205 (a5f66a9)", 137.21, 136.10, 137.02]
-  ]
+    fake_wall_data = [
+        ["20230204 (2787416)", 51.538, 49.210, 51.212],  # wall_data
+        ["20230204 (2787416)", 136.02, 136.00, 136.02],  # memory_data
+        ["20230205 (9beea5f)", 52.321, 49.370, 50.612],  # wall_data
+        ["20230205 (9beea5f)", 136.65, 136.00, 133.02],  # memory_data
+        ["20230205 (a5f66a9)", 51.765, 45.123, 52.814],
+        ["20230205 (a5f66a9)", 137.21, 136.10, 137.02],
+    ]
 
-  for row in fake_wall_data:
-    # Commits on day X are benchmarked on day X + 1.
-    date_str = "20230205 (27874166a566a99beea5f)"
-    wall_data.append([row[0], row[1], row[2], row[3]])
-    memory_data.append(
-        [row[0], row[1], row[2], row[3]])
-    # wall_data.append([date_str, 52.538, 49.370, 52.612])
-    # memory_data.append(
-    #     [date_str, 136.02, 136.00, 136.02])
+    for row in fake_wall_data:
+        # Commits on day X are benchmarked on day X + 1.
+        date_str = "20230205 (27874166a566a99beea5f)"
+        wall_data.append([row[0], row[1], row[2], row[3]])
+        memory_data.append([row[0], row[1], row[2], row[3]])
+        # wall_data.append([date_str, 52.538, 49.370, 52.612])
+        # memory_data.append(
+        #     [date_str, 136.02, 136.00, 136.02])
 
-  return wall_data, memory_data
+    return wall_data, memory_data
 
 
 def _prepare_time_series_data(raw_data):
-  """Massage the data to fit a format suitable for graph generation."""
-  wall_data = [[
-      "Date", "Wall Time", {
-          "role": "interval"
-      }, {
-          "role": "interval"
-      }
-  ]]
-  memory_data = [["Date", "Memory", {"role": "interval"}, {"role": "interval"}]]
+    """Massage the data to fit a format suitable for graph generation."""
+    wall_data = [["Date", "Wall Time", {"role": "interval"}, {"role": "interval"}]]
+    memory_data = [["Date", "Memory", {"role": "interval"}, {"role": "interval"}]]
 
-  for row in raw_data:
-    # Commits on day X are benchmarked on day X + 1.
-    date_str = "{} ({})".format(
-        (row.report_date - datetime.timedelta(days=1)).strftime("%Y-%m-%d"),
-        row.bazel_commit[:7])
-    wall_data.append([date_str, row.median_wall, row.min_wall, row.max_wall])
-    memory_data.append(
-        [date_str, row.median_memory, row.min_memory, row.max_memory])
+    for row in raw_data:
+        # Commits on day X are benchmarked on day X + 1.
+        date_str = "{} ({})".format(
+            (row.report_date - datetime.timedelta(days=1)).strftime("%Y-%m-%d"),
+            row.bazel_commit[:7],
+        )
+        wall_data.append([date_str, row.median_wall, row.min_wall, row.max_wall])
+        memory_data.append(
+            [date_str, row.median_memory, row.min_memory, row.max_memory]
+        )
 
-  return wall_data, memory_data
+    return wall_data, memory_data
 
 
-def _generate_report_for_date(project, date, storage_bucket, report_name,
-                              upload_report, bq_project, bq_table):
-  """Generates a html report for the specified date & project.
+def _generate_report_for_date(
+    project, date, storage_bucket, report_name, upload_report, bq_project, bq_table
+):
+    """Generates a html report for the specified date & project.
 
-  Args:
-    project: the project to generate report for. Check out bazel_bench.py.
-    date: the date to generate report for.
-    storage_bucket: the Storage bucket to fetch data from/upload the report to.
-    report_name: the name of the report on GS.
-    upload_report: whether to upload the report to GCS.
-    bq_project: the BigQuery project.
-    bq_table: the BigQuery table.
-  """
-  dated_subdir = _get_dated_subdir_for_project(project, date)
-  bq_date_cutoff = (date + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
-  # root_storage_url = _get_storage_url(storage_bucket, dated_subdir)
-  root_storage_url = _get_storage_url(storage_bucket, '')
-  metadata_file_url = "{}/METADATA".format(root_storage_url)
-  # metadata_file_url = "{}/20230202054048.csv".format(root_storage_url)
-  metadata = _load_json_from_remote_file(metadata_file_url)
+    Args:
+      project: the project to generate report for. Check out bazel_bench.py.
+      date: the date to generate report for.
+      storage_bucket: the Storage bucket to fetch data from/upload the report to.
+      report_name: the name of the report on GS.
+      upload_report: whether to upload the report to GCS.
+      bq_project: the BigQuery project.
+      bq_table: the BigQuery table.
+    """
+    dated_subdir = _get_dated_subdir_for_project(project, date)
+    bq_date_cutoff = (date + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+    # root_storage_url = _get_storage_url(storage_bucket, dated_subdir)
+    root_storage_url = _get_storage_url(storage_bucket, "")
+    metadata_file_url = "{}/METADATA".format(root_storage_url)
+    # metadata_file_url = "{}/20230202054048.csv".format(root_storage_url)
+    metadata = _load_json_from_remote_file(metadata_file_url)
 
-  graph_components = []
-  raw_files_components = []
-  graph_components.append(_uncollapse_button("commits", "Show commits"))
-  graph_components.append(
-      _row_component(
-          _col_component(
-              "col-sm-10",
-              _commits_component(metadata["all_commits"],
-                                 metadata["benchmarked_commits"]))))
-
-  for platform_measurement in sorted(
-      metadata["platforms"], key=lambda k: k["platform"]):
-      # metadata["platforms"], key=lambda k: k[0]):
-    # Get the data
-    print("====> platform_measurement:", platform_measurement)
-    performance_data = _load_csv_from_remote_file("{}/{}".format(
-        root_storage_url, platform_measurement["perf_data"]))
-    aggr_json_profile = _load_csv_from_remote_file("{}/{}".format(
-        root_storage_url, platform_measurement["aggr_json_profiles"]))
-    summary_text = _load_txt_from_remote_file("{}/{}".format(
-        root_storage_url,
-        platform_measurement["perf_data"].replace(".csv", ".txt")))
-
-    wall_data, memory_data = _prepare_data_for_graph(performance_data,
-                                                     aggr_json_profile)
-    platform = platform_measurement["platform"]
-
-    '''
-    historical_wall_data, historical_mem_data = _prepare_time_series_data(
-        _query_bq(bq_project, bq_table, metadata["project_source"],
-                  bq_date_cutoff, platform))
-    '''
-    historical_wall_data, historical_mem_data = _prepare_time_series_fake_data()
-    # Generate a graph for that platform.
-    row_content = []
-    row_content.append(
-        _col_component(
-            "col-sm-6",
-            _single_graph(
-                metric="wall",
-                metric_label="Wall Time (s)",
-                data=wall_data,
-                platform=platform,
-                median_series=len(EVENTS_ORDER))))
-
-    row_content.append(
-        _col_component(
-            "col-sm-6",
-            _historical_graph(
-                metric="wall",
-                metric_label="Wall Time (s)",
-                data=historical_wall_data,
-                platform=platform,
-                color="#dd4477")))
-
-    row_content.append(
-        _col_component(
-            "col-sm-6",
-            _single_graph(
-                metric="memory",
-                metric_label="Memory (MB)",
-                data=memory_data,
-                platform=platform,
-            )))
-
-    row_content.append(
-        _col_component(
-            "col-sm-6",
-            _historical_graph(
-                metric="memory",
-                metric_label="Memory (MB)",
-                data=historical_mem_data,
-                platform=platform,
-                color="#3366cc")))
-
-    row_content.append(
-        _col_component(
-            "col-sm-12",
-            _uncollapse_button("summary-{}".format(platform),
-                               "Show Summary Table")))
-    row_content.append(
-        _col_component("col-sm-12",
-                       _summary_table(content=summary_text, platform=platform)))
-
+    graph_components = []
+    raw_files_components = []
+    graph_components.append(_uncollapse_button("commits", "Show commits"))
     graph_components.append(
         _row_component(
             _col_component(
-                "col-sm-5",
-                '<h2 class="underlined">{}</h2></hr>'.format(platform))))
-    raw_files_components.append(
-        _uncollapse_button("raw_files_%s" % platform,
-                           "Show raw files for %s" % platform))
-    # raw_files_components.append(
-    #     _row_component(
-    #         _col_component(
-    #             "col-sm-10",
-    #             _get_file_list_component(storage_bucket, dated_subdir,
-    #                                      platform))))
-    graph_components.append(_row_component("\n".join(row_content)))
+                "col-sm-10",
+                _commits_component(
+                    metadata["all_commits"], metadata["benchmarked_commits"]
+                ),
+            )
+        )
+    )
 
-  content = _full_report(
-      project,
-      metadata["project_source"],
-      date,
-      command=metadata["command"],
-      graph_components="\n".join(graph_components),
-      raw_files_components="\n".join(raw_files_components))
+    for platform_measurement in sorted(
+        metadata["platforms"], key=lambda k: k["platform"]
+    ):
+        # metadata["platforms"], key=lambda k: k[0]):
+        # Get the data
+        print("====> platform_measurement:", platform_measurement)
+        performance_data = _load_csv_from_remote_file(
+            "{}/{}".format(root_storage_url, platform_measurement["perf_data"])
+        )
+        aggr_json_profile = _load_csv_from_remote_file(
+            "{}/{}".format(root_storage_url, platform_measurement["aggr_json_profiles"])
+        )
+        summary_text = _load_txt_from_remote_file(
+            "{}/{}".format(
+                root_storage_url,
+                platform_measurement["perf_data"].replace(".csv", ".txt"),
+            )
+        )
 
-  if not os.path.exists(REPORTS_DIRECTORY):
-    os.makedirs(REPORTS_DIRECTORY)
+        wall_data, memory_data = _prepare_data_for_graph(
+            performance_data, aggr_json_profile
+        )
+        platform = platform_measurement["platform"]
 
-  report_tmp_file = "{}/report_{}_{}.html".format(REPORTS_DIRECTORY, project,
-                                                  date.strftime("%Y%m%d"))
-  print("report_tmp_file: ", report_tmp_file)
+        """
+    historical_wall_data, historical_mem_data = _prepare_time_series_data(
+        _query_bq(bq_project, bq_table, metadata["project_source"],
+                  bq_date_cutoff, platform))
+    """
+        historical_wall_data, historical_mem_data = _prepare_time_series_fake_data()
+        # Generate a graph for that platform.
+        row_content = []
+        row_content.append(
+            _col_component(
+                "col-sm-6",
+                _single_graph(
+                    metric="wall",
+                    metric_label="Wall Time (s)",
+                    data=wall_data,
+                    platform=platform,
+                    median_series=len(EVENTS_ORDER),
+                ),
+            )
+        )
 
-  with open(report_tmp_file, "w") as fo:
-    fo.write(content)
+        row_content.append(
+            _col_component(
+                "col-sm-6",
+                _historical_graph(
+                    metric="wall",
+                    metric_label="Wall Time (s)",
+                    data=historical_wall_data,
+                    platform=platform,
+                    color="#dd4477",
+                ),
+            )
+        )
 
-  if upload_report:
-    _upload_to_storage(report_tmp_file, storage_bucket,
-                       dated_subdir + "/{}.html".format(report_name))
-  # else:
-  #   print(content)
+        row_content.append(
+            _col_component(
+                "col-sm-6",
+                _single_graph(
+                    metric="memory",
+                    metric_label="Memory (MB)",
+                    data=memory_data,
+                    platform=platform,
+                ),
+            )
+        )
+
+        row_content.append(
+            _col_component(
+                "col-sm-6",
+                _historical_graph(
+                    metric="memory",
+                    metric_label="Memory (MB)",
+                    data=historical_mem_data,
+                    platform=platform,
+                    color="#3366cc",
+                ),
+            )
+        )
+
+        row_content.append(
+            _col_component(
+                "col-sm-12",
+                _uncollapse_button("summary-{}".format(platform), "Show Summary Table"),
+            )
+        )
+        row_content.append(
+            _col_component(
+                "col-sm-12", _summary_table(content=summary_text, platform=platform)
+            )
+        )
+
+        graph_components.append(
+            _row_component(
+                _col_component(
+                    "col-sm-5", '<h2 class="underlined">{}</h2></hr>'.format(platform)
+                )
+            )
+        )
+        raw_files_components.append(
+            _uncollapse_button(
+                "raw_files_%s" % platform, "Show raw files for %s" % platform
+            )
+        )
+        # raw_files_components.append(
+        #     _row_component(
+        #         _col_component(
+        #             "col-sm-10",
+        #             _get_file_list_component(storage_bucket, dated_subdir,
+        #                                      platform))))
+        graph_components.append(_row_component("\n".join(row_content)))
+
+    content = _full_report(
+        project,
+        metadata["project_source"],
+        date,
+        command=metadata["command"],
+        graph_components="\n".join(graph_components),
+        raw_files_components="\n".join(raw_files_components),
+    )
+
+    if not os.path.exists(REPORTS_DIRECTORY):
+        os.makedirs(REPORTS_DIRECTORY)
+
+    report_tmp_file = "{}/report_{}_{}.html".format(
+        REPORTS_DIRECTORY, project, date.strftime("%Y%m%d")
+    )
+    print("report_tmp_file: ", report_tmp_file)
+
+    with open(report_tmp_file, "w") as fo:
+        fo.write(content)
+
+    if upload_report:
+        _upload_to_storage(
+            report_tmp_file,
+            storage_bucket,
+            dated_subdir + "/{}.html".format(report_name),
+        )
+    # else:
+    #   print(content)
 
 
 def main(args=None):
-  if args is None:
-    args = sys.argv[1:]
+    if args is None:
+        args = sys.argv[1:]
 
-  parser = argparse.ArgumentParser(description="Bazel Bench Daily Report")
-  parser.add_argument("--date", type=str, help="Date in YYYY-mm-dd format.")
-  parser.add_argument(
-      "--project",
-      action="append",
-      help=(
-          "Projects to generate report for. Use the storage_subdir defined "
-          "in the main bazel-bench script in bazelbuild/continuous-integration."
-      ),
-  )
-  parser.add_argument(
-      "--storage_bucket",
-      help="The GCP Storage bucket to fetch benchmark data from/upload the reports to."
-  )
-  parser.add_argument(
-      "--upload_report",
-      type=bool,
-      default=False,
-      help="Whether to upload the report.")
-  parser.add_argument(
-      "--bigquery_table",
-      help="The BigQuery table to fetch data from. In the format: project:table_identifier."
-  )
-  parser.add_argument(
-      "--report_name",
-      type=str,
-      help="The name of the generated report.",
-      default="report")
-  parsed_args = parser.parse_args(args)
+    parser = argparse.ArgumentParser(description="Bazel Bench Daily Report")
+    parser.add_argument("--date", type=str, help="Date in YYYY-mm-dd format.")
+    parser.add_argument(
+        "--project",
+        action="append",
+        help=(
+            "Projects to generate report for. Use the storage_subdir defined "
+            "in the main bazel-bench script in bazelbuild/continuous-integration."
+        ),
+    )
+    parser.add_argument(
+        "--storage_bucket",
+        help="The GCP Storage bucket to fetch benchmark data from/upload the reports to.",
+    )
+    parser.add_argument(
+        "--upload_report",
+        type=bool,
+        default=False,
+        help="Whether to upload the report.",
+    )
+    parser.add_argument(
+        "--bigquery_table",
+        help="The BigQuery table to fetch data from. In the format: project:table_identifier.",
+    )
+    parser.add_argument(
+        "--report_name",
+        type=str,
+        help="The name of the generated report.",
+        default="report",
+    )
+    parsed_args = parser.parse_args(args)
 
-  date = (
-      datetime.datetime.strptime(parsed_args.date, "%Y-%m-%d").date()
-      if parsed_args.date else datetime.date.today())
-  # print("====> date:", date)
+    date = (
+        datetime.datetime.strptime(parsed_args.date, "%Y-%m-%d").date()
+        if parsed_args.date
+        else datetime.date.today()
+    )
+    # print("====> date:", date)
 
-  if parsed_args.bigquery_table is not None:
-    bq_project, bq_table = parsed_args.bigquery_table.split(":")
-    logger.log(parsed_args.bigquery_table.split(','))
-  else:
-    bq_project, bq_table = ' ', ' '
-    logger.log_error('parsed_args.bigquery_table is None')
-  
-  for project in parsed_args.project:
-    _generate_report_for_date(project, date, parsed_args.storage_bucket,
-                              parsed_args.report_name,
-                              parsed_args.upload_report, bq_project, bq_table)
+    if parsed_args.bigquery_table is not None:
+        bq_project, bq_table = parsed_args.bigquery_table.split(":")
+        logger.log(parsed_args.bigquery_table.split(","))
+    else:
+        bq_project, bq_table = " ", " "
+        logger.log_error("parsed_args.bigquery_table is None")
+
+    for project in parsed_args.project:
+        _generate_report_for_date(
+            project,
+            date,
+            parsed_args.storage_bucket,
+            parsed_args.report_name,
+            parsed_args.upload_report,
+            bq_project,
+            bq_table,
+        )
 
 
 if __name__ == "__main__":
-  sys.exit(main())
+    sys.exit(main())

@@ -14,56 +14,62 @@
 """Handles the uploading of results to Storage."""
 import os
 import re
-import utils.logger as logger
 
-from absl import app
-from absl import flags
+import utils.logger as logger
+from absl import app, flags
 from google.cloud import storage
 
 
 def upload_to_storage(file_path, project_id, bucket_id, destination):
-  """Uploads the file to Storage.
+    """Uploads the file to Storage.
 
-  Takes the configuration from GOOGLE_APPLICATION_CREDENTIALS.
+    Takes the configuration from GOOGLE_APPLICATION_CREDENTIALS.
 
-  Args:
-    file_path: the path to the file to be uploaded.
-    project_id: the GCP project id.
-    bucket_id: the Storage bucket.
-    destination: the path to the destination on the bucket.
-  """
-  # This is a workaround for https://github.com/bazelbuild/rules_python/issues/14
+    Args:
+      file_path: the path to the file to be uploaded.
+      project_id: the GCP project id.
+      bucket_id: the Storage bucket.
+      destination: the path to the destination on the bucket.
+    """
+    # This is a workaround for https://github.com/bazelbuild/rules_python/issues/14
 
-  logger.log('Uploading data to Storage.')
-  client = storage.Client(project=project_id)
-  bucket = client.get_bucket(bucket_id)
-  blob = bucket.blob(destination)
+    logger.log("Uploading data to Storage.")
+    client = storage.Client(project=project_id)
+    bucket = client.get_bucket(bucket_id)
+    blob = bucket.blob(destination)
 
-  blob.upload_from_filename(file_path)
+    blob.upload_from_filename(file_path)
 
-  logger.log('Uploaded {} to {}/{}.'.format(file_path, bucket_id, destination))
+    logger.log("Uploaded {} to {}/{}.".format(file_path, bucket_id, destination))
 
 
 FLAGS = flags.FLAGS
-flags.DEFINE_string('upload_to_storage', None,
-                    'The details of the GCP Storage bucket to upload ' \
-                    'results to: <project_id>:<bucket_id>:<subdirectory>.')
+flags.DEFINE_string(
+    "upload_to_storage",
+    None,
+    "The details of the GCP Storage bucket to upload "
+    "results to: <project_id>:<bucket_id>:<subdirectory>.",
+)
 
 
 def main(argv):
-  if not re.match('^[\w-]+:[\w-]+:[\w\/-]+$', FLAGS.upload_to_storage):
-    raise ValueError('--upload_to_storage should follow the pattern '
-                     '<project_id>:<bucket_id>:<subdirectory>.')
+    if not re.match(r"^[\w-]+:[\w-]+:[\w\/-]+$", FLAGS.upload_to_storage):
+        raise ValueError(
+            "--upload_to_storage should follow the pattern "
+            "<project_id>:<bucket_id>:<subdirectory>."
+        )
 
-  # Discard the first argument.
-  files_to_upload = argv[1:]
+    # Discard the first argument.
+    files_to_upload = argv[1:]
 
-  project_id, bucket_id, subdirectory = FLAGS.upload_to_storage.split(':') # local-index-314711, 
-  for filepath in files_to_upload:
-    filename = os.path.basename(filepath)
-    destination = '%s/%s' % (subdirectory, filename)
-    upload_to_storage(filepath, project_id, bucket_id, destination)
+    project_id, bucket_id, subdirectory = FLAGS.upload_to_storage.split(
+        ":"
+    )  # local-index-314711,
+    for filepath in files_to_upload:
+        filename = os.path.basename(filepath)
+        destination = "%s/%s" % (subdirectory, filename)
+        upload_to_storage(filepath, project_id, bucket_id, destination)
 
 
-if __name__ == '__main__':
-  app.run(main)
+if __name__ == "__main__":
+    app.run(main)

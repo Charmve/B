@@ -18,7 +18,6 @@ source "${QCRAFT_TOP_DIR}/scripts/qcraft_base.sh"
 source "${QBUILD_TOP_DIR}/scripts/qbuild_base.sh"
 source "${QCRAFT_TOP_DIR}/tools/eg/check_gtest_deps.sh"
 
-
 ####################################################
 # Find some file from a input dir
 # Arguments:
@@ -26,16 +25,16 @@ source "${QCRAFT_TOP_DIR}/tools/eg/check_gtest_deps.sh"
 # Returns:
 #   file lists
 ####################################################
-function read_dir_to_get_file_name(){
-    for file in `ls $1`       #注意此处这是两个反引号，表示运行系统命令
-    do
-        if [ -d $1"/"$file ]  #注意此处之间一定要加上空格，否则会报错
-        then
-            read_dir_to_get_file_name $1"/"$file
-        else
-            echo $1"/"$file   #在此处处理文件即可
-        fi
-    done
+function read_dir_to_get_file_name() {
+  for file in $( #注意此处这是两个反引号，表示运行系统命令
+    ls $1
+  ); do
+    if [ -d $1"/"$file ]; then #注意此处之间一定要加上空格，否则会报错
+      read_dir_to_get_file_name $1"/"$file
+    else
+      echo $1"/"$file #在此处处理文件即可
+    fi
+  done
 }
 
 function _is_target_testonly() {
@@ -103,7 +102,6 @@ function gtest_dependency_check_for_dir() {
   ok "Done checking gtest dependency for ${prefix}"
 }
 
-
 ####################################################
 # Find some file's dependencies
 # Arguments:
@@ -112,74 +110,72 @@ function gtest_dependency_check_for_dir() {
 #   Bazel target list
 ####################################################
 function find_file_bazel_dependency() {
-    # info "Hello find_file_bazel_dependency"
-    local file_name=$1
-    local bazel_target_name=""
+  # info "Hello find_file_bazel_dependency"
+  local file_name=$1
+  local bazel_target_name=""
 
-    # [[ $file_name == *.cc ]] && bazel_target_name=${file_name%.cc*}${file_name##*.cc} # || warning "qbuild: only support C"
-    # [[ $file_name == *.h ]] && bazel_target_name=${file_name%.h*}${file_name##*.h} # || warning "qbuild: only support C"
-    # info "$bazel_target_name"
+  # [[ $file_name == *.cc ]] && bazel_target_name=${file_name%.cc*}${file_name##*.cc} # || warning "qbuild: only support C"
+  # [[ $file_name == *.h ]] && bazel_target_name=${file_name%.h*}${file_name##*.h} # || warning "qbuild: only support C"
+  # info "$bazel_target_name"
 
-    if [[ $file_name == *BUILD* ]]; then
-        return
+  if [[ $file_name == *BUILD* ]]; then
+    return
+  fi
+
+  info "A - file_name: ${file_name}"
+  base_file_name=$(basename $file_name)
+  dir_name=$(dirname $file_name)
+  info "dir_name: $dir_name"
+  file_name=$(basename $file_name | awk -F '.' '{print $1}')
+  info "B - file_name: $file_name"
+
+  local bazel_target_name=""
+  package_contains_file=$(bazel query //$dir_name":"$file_name --output=package)
+  info "package_contains_file: $package_contains_file"
+  bazel_target_name=$(grep -C 5 $file_name $package_contains_file/BUILD | grep 'name' | awk -F '= "' '{print $2}' | awk -F '",' '{print $1}' | uniq -u)
+
+  local target_names=()
+  for item_target in ${bazel_target_name[@]}; do
+    target_names+=("//$package_contains_file:$item_target")
+    # target_names+=("$(buildozer 'print label' $package_contains_file:$item_target")
+    info "bazel_target_name: ${item_target}"
+    if [[ "$bazel_target_name" == "$item_target" ]]; then
+      ok "be the same."
+    else
+      warning "${BOLD}Not same${NO_COLOR}. bazel_target_name1: $bazel_target_name, bazel_target_name: $item_target"
     fi
-    
-    info "A - file_name: ${file_name}"
-    base_file_name=$(basename $file_name)
-    dir_name=$(dirname $file_name)
-    info "dir_name: $dir_name"
-    file_name=$(basename $file_name | awk -F '.' '{print $1}')
-    info "B - file_name: $file_name"
+  done
 
-    local bazel_target_name=""
-    package_contains_file=$(bazel query //$dir_name":"$file_name --output=package)
-    info "package_contains_file: $package_contains_file"
-    bazel_target_name=$(grep -C 5 $file_name $package_contains_file/BUILD | grep 'name' | awk -F '= "' '{print $2}' | awk -F '",' '{print $1}' | uniq -u)
+  bazel_target_name=${target_names[*]}
 
-    local target_names=()
-    for item_target in ${bazel_target_name[@]}
-    do
-        target_names+=("//$package_contains_file:$item_target")
-        # target_names+=("$(buildozer 'print label' $package_contains_file:$item_target")
-        info "bazel_target_name: ${item_target}"
-        if [[ "$bazel_target_name" == "$item_target" ]]; then
-            ok "be the same."
-        else
-            warning "${BOLD}Not same${NO_COLOR}. bazel_target_name1: $bazel_target_name, bazel_target_name: $item_target"
-        fi
-    done
-
-    bazel_target_name=${target_names[*]}
-    
-    echo "${bazel_target_name[*]}"
+  echo "${bazel_target_name[*]}"
 }
 
 function find_build_target_bazel_dependency() {
-    # echo "go into find_build_target_bazel_dependency"
-    if [[ $# == 0 ]]; then
-        error "Need a bazel target name, like '//onboard/lite:lite_timer'."
-        # usage
-        exit 1
-    fi
-    local bazel_target_name="$1"
-    echo "local bazel_target_name: $bazel_target_name"
-    bazel query "somepath(//offboard/..., $bazel_target_name)"
+  # echo "go into find_build_target_bazel_dependency"
+  if [[ $# == 0 ]]; then
+    error "Need a bazel target name, like '//onboard/lite:lite_timer'."
+    # usage
+    exit 1
+  fi
+  local bazel_target_name="$1"
+  echo "local bazel_target_name: $bazel_target_name"
+  bazel query "somepath(//offboard/..., $bazel_target_name)"
 }
 
 function find_depend_target_by_file() {
-    # echo "Hello! find_depend_target_by_file"
-    local _file_name=$1
+  # echo "Hello! find_depend_target_by_file"
+  local _file_name=$1
 
-    echo -e "\n1 =========> _file_name: $_file_name"
-    bazel_target_name=$(find_file_bazel_dependency $_file_name)
-    echo "2 =========> bazel_target_name: $bazel_target_name"
-    if [[ ! $bazel_target_name ]]; then
-      for _target_name in ${bazel_target_name[@]}
-      do
-          echo "3 =========> _target_name: $_target_name"
-          find_build_target_bazel_dependency $_target_name
-      done
-    fi
+  echo -e "\n1 =========> _file_name: $_file_name"
+  bazel_target_name=$(find_file_bazel_dependency $_file_name)
+  echo "2 =========> bazel_target_name: $bazel_target_name"
+  if [[ ! $bazel_target_name ]]; then
+    for _target_name in ${bazel_target_name[@]}; do
+      echo "3 =========> _target_name: $_target_name"
+      find_build_target_bazel_dependency $_target_name
+    done
+  fi
 }
 
 function run_increase_file2target() {
@@ -187,36 +183,35 @@ function run_increase_file2target() {
 
   for one_change in "${changed_files[@]}"; do
     if [[ "${one_change}" == *".proto" ]]; then
-        warning "this feature is comming ..."
+      warning "this feature is comming ..."
     fi
 
     # file_base_name=$(basename $_file_name)
     # echo "file_base_name: $file_base_name"
     # echo "=====> _file_name: $one_change"
-    
+
     if [[ $one_change == *.cc || $one_change == *.h ]]; then
-        [[ $one_change == *.cc ]] && bazel_target_name=${one_change%.cc*}${one_change##*.cc} # || warning "qbuild: only support C"
-        [[ $one_change == *.h ]] && bazel_target_name=${one_change%.h*}${one_change##*.h} # || warning "qbuild: only support C"
-        info "bazel build module_name: $bazel_target_name"
-        if [[ $bazel_target_name == *_test ]]; then
-            info "qbuild: run $bazel_target_name on j5."
-            qbuild --run j5 $bazel_target_name
-        else
-            find_depend_target_by_file ${bazel_target_name}
-        fi
+      [[ $one_change == *.cc ]] && bazel_target_name=${one_change%.cc*}${one_change##*.cc} # || warning "qbuild: only support C"
+      [[ $one_change == *.h ]] && bazel_target_name=${one_change%.h*}${one_change##*.h}    # || warning "qbuild: only support C"
+      info "bazel build module_name: $bazel_target_name"
+      if [[ $bazel_target_name == *_test ]]; then
+        info "qbuild: run $bazel_target_name on j5."
+        qbuild --run j5 $bazel_target_name
+      else
+        find_depend_target_by_file ${bazel_target_name}
+      fi
     fi
   done
 }
 
-
 function install_google_cli() {
-    curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-416.0.0-linux-x86_64.tar.gz
+  curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-416.0.0-linux-x86_64.tar.gz
 
-    tar -xf google-cloud-cli-416.0.0-linux-x86_64.tar.gz
-    ./google-cloud-sdk/install.sh
-    ./google-cloud-sdk/bin/gcloud init
+  tar -xf google-cloud-cli-416.0.0-linux-x86_64.tar.gz
+  ./google-cloud-sdk/install.sh
+  ./google-cloud-sdk/bin/gcloud init
 
-    rm -rf google-cloud-cli-416.0.0-linux-x86_64.tar.gz
+  rm -rf google-cloud-cli-416.0.0-linux-x86_64.tar.gz
 }
 
 # function main() {
@@ -230,7 +225,7 @@ function install_google_cli() {
 #   fi
 
 #   cd $QCRAFT_TOP_DIR #go /qcraft
-  
+
 #   # parse_cmdline_args "$@"
 
 # #   echo "On branch ${GREEN}$(git rev-parse --abbrev-ref HEAD)${NO_COLOR}"
@@ -238,12 +233,9 @@ function install_google_cli() {
 # #   git diff --ignore-submodules --diff-filter=d --name-only
 
 # #   run_increase_file2target
-  
 
 #   echo -e "\n${WHITE}${BOLD}All done!${NO_COLOR} ✨ 🍰 ✨"
 #   echo $(date)
 # }
 
 # main "$@"
-
-

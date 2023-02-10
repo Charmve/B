@@ -16,24 +16,25 @@ import sys
 
 
 def fake_log(text):
-  """Fakes the log function. Prints to stderr."""
-  sys.stderr.write(text)
+    """Fakes the log function. Prints to stderr."""
+    sys.stderr.write(text)
 
 
 def fake_exec_command(args, shell=False, fail_if_nonzero=True, cwd=None):
-  """Fakes the _exec_command function."""
-  fake_log(' '.join(args))
+    """Fakes the _exec_command function."""
+    fake_log(" ".join(args))
 
 
 class FakeBazel(object):
-  """Fake class for utils.Bazel"""
+    """Fake class for utils.Bazel"""
 
-  def __init__(self, bazel_binary_path, bazelrc):
-    # Do nothing
-    return
+    def __init__(self, bazel_binary_path, bazelrc):
+        # Do nothing
+        return
 
-  def command(self, command_name, args=None, collect_memory=False):
-    """Fake method to verify that the command is executed."""
-    args = args or []
-    fake_log('Executing Bazel command: bazel %s %s' %
-             (command_name, ' '.join(args)))
+    def command(self, command_name, args=None, collect_memory=False):
+        """Fake method to verify that the command is executed."""
+        args = args or []
+        fake_log(
+            "Executing Bazel command: bazel %s %s" % (command_name, " ".join(args))
+        )

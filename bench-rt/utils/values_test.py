@@ -18,50 +18,49 @@ from values import Values
 
 
 class ValuesTest(unittest.TestCase):
+    def test_initialize(self):
+        values = Values()
+        self.assertEqual([], values.values())
 
-  def test_initialize(self):
-    values = Values()
-    self.assertEqual([], values.values())
+        values = Values([2.3, 4.2])
+        self.assertEqual([2.3, 4.2], values.values())
 
-    values = Values([2.3, 4.2])
-    self.assertEqual([2.3, 4.2], values.values())
+    def test_add(self):
+        values = Values()
+        self.assertEqual([], values.values())
 
-  def test_add(self):
-    values = Values()
-    self.assertEqual([], values.values())
+        values.add(4.2)
+        values.add(2.3)
+        self.assertEqual([4.2, 2.3], values.values())
 
-    values.add(4.2)
-    values.add(2.3)
-    self.assertEqual([4.2, 2.3], values.values())
+    def test_median(self):
+        values = Values([1, 10, 1])
+        self.assertEqual(1, values.median())
 
-  def test_median(self):
-    values = Values([1, 10, 1])
-    self.assertEqual(1, values.median())
+        # Returns the average of the two middle values when len(values()) is even.
+        values.add(20)
+        self.assertEqual(5.5, values.median())
 
-    # Returns the average of the two middle values when len(values()) is even.
-    values.add(20)
-    self.assertEqual(5.5, values.median())
+        values.add(20)
+        self.assertEqual(10, values.median())
 
-    values.add(20)
-    self.assertEqual(10, values.median())
+    def test_mean(self):
+        values = Values([1, 10, 1])
+        self.assertEqual(4, values.mean())
 
-  def test_mean(self):
-    values = Values([1, 10, 1])
-    self.assertEqual(4, values.mean())
+    def test_stddev(self):
+        values = Values([1, 10, 1])
+        self.assertAlmostEqual(4.24, values.stddev(), places=2)
 
-  def test_stddev(self):
-    values = Values([1, 10, 1])
-    self.assertAlmostEqual(4.24, values.stddev(), places=2)
+    def test_pval_identical(self):
+        identical_list = [1, 10, 1]
+        values = Values(identical_list)
+        self.assertEqual(0, values.pval(identical_list))
 
-  def test_pval_identical(self):
-    identical_list = [1, 10, 1]
-    values = Values(identical_list)
-    self.assertEqual(0, values.pval(identical_list))
-
-  def test_pval_significant(self):
-    values = Values([1, 1, 1, 1, 1])
-    self.assertAlmostEqual(0.992, values.pval([10, 10, 10, 10, 10]), places=3)
+    def test_pval_significant(self):
+        values = Values([1, 1, 1, 1, 1])
+        self.assertAlmostEqual(0.992, values.pval([10, 10, 10, 10, 10]), places=3)
 
 
-if __name__ == '__main__':
-  unittest.main()
+if __name__ == "__main__":
+    unittest.main()

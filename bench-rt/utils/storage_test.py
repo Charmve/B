@@ -1,8 +1,10 @@
+import os  # noqa: F401
+
 from google.cloud import storage
-import os
 
 # gcloud config set project local-index-314711
 # os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = '/home/qcraft/.config/gcloud/application_default_credentials.json'
+
 
 def authenticate_implicit_with_adc(project_id="local-index-314711"):
     """
@@ -30,10 +32,11 @@ def authenticate_implicit_with_adc(project_id="local-index-314711"):
         print(bucket.name)
     print("Listed all storage buckets.")
 
+
 def run_quickstart():
     # [START storage_quickstart]
     # Imports the Google Cloud client library
-    
+
     # Instantiates a client
     storage_client = storage.Client()
 
