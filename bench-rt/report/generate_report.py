@@ -57,19 +57,19 @@ def _upload_to_storage(src_file_path, storage_bucket, destination_dir):
       "gsutil", "cp", src_file_path,
       "gs://{}/{}".format(storage_bucket, destination_dir)
   ]
-  print("_upload_to_storage: args\n", args)
+  print("_upload_to_storage - args: \n", args)
   subprocess.run(args)
 
 
 def _load_csv_from_remote_file(http_url):
-  print("====> csv - http_url:", http_url)
+  # print("====> csv - http_url:", http_url)
   with urllib.request.urlopen(http_url) as resp:
     reader = csv.DictReader(io.TextIOWrapper(resp))
     return [row for row in reader]
 
 
 def _load_json_from_remote_file(http_url):
-  print("====> json - http_url:", http_url)
+  # print("====> json - http_url:", http_url)
   with urllib.request.urlopen(http_url) as resp:
     data = resp.read()
     print("====> json data: ", data)
@@ -79,7 +79,7 @@ def _load_json_from_remote_file(http_url):
 
 
 def x_load_json_from_remote_file(url):
-  print("====> csv - http_url:", url)
+  # print("====> csv - http_url:", url)
   resp = urllib.request.urlopen(url)
   ele_json = json.loads(resp.read())
   print("====> json data: ", ele_json)
@@ -93,23 +93,23 @@ def _load_txt_from_remote_file(http_url):
 
 def _load_csv_from_local_file(csv_file_path):
   print("====> csv_file_path:", csv_file_path)
-  with open(csv_file_path, newline='') as resp:
-    spamreader = csv.reader(resp, delimiter=' ', quotechar='|')
+  with open(csv_file_path, newline='') as f:
+    spamreader = csv.reader(f, delimiter=' ', quotechar='|')
     return [row for row in spamreader]
 
 
 def _load_json_from_local_file(json_file_path):
   print("====> json_file_path:", json_file_path)
-  with open(json_file_path, "r") as resp:
-    data = json.load(resp.read())
+  with open(json_file_path, "r") as f:
+    data = json.load(f.read())
     print("--- TEMPP data:", data)
     return [item for item in data]
 
 
 def _load_txt_from_local_file(txt_file_path):
   print("====> txt_file_path:", txt_file_path)
-  with open(txt_file_path, "r") as resp:
-    return resp.read()
+  with open(txt_file_path, "r") as f:
+    return f.read()
 
 
 def _get_storage_url(storage_bucket, dated_subdir):
@@ -351,7 +351,7 @@ def _historical_graph(metric, metric_label, data, platform, color):
   # Set viewWindow margins.
   minVal = sys.maxsize
   maxVal = 0
-  print("====> data: ", data)
+  # print("====> data: ", data)
   for row in data[1:]:
     minVal = min(minVal, row[2])
     maxVal = max(maxVal, row[3])
@@ -566,12 +566,24 @@ def _prepare_time_series_fake_data():
   ]]
   memory_data = [["Date", "Memory", {"role": "interval"}, {"role": "interval"}]]
 
-  for i in range(5):
+  fake_wall_data = [
+    ["20230204 (2787416)", 51.538, 49.210, 51.212], # wall_data
+    ["20230204 (2787416)", 136.02, 136.00, 136.02], # memory_data
+    ["20230205 (9beea5f)", 52.321, 49.370, 50.612], # wall_data
+    ["20230205 (9beea5f)", 136.65, 136.00, 133.02], # memory_data
+    ["20230205 (a5f66a9)", 51.765, 45.123, 52.814],
+    ["20230205 (a5f66a9)", 137.21, 136.10, 137.02]
+  ]
+
+  for row in fake_wall_data:
     # Commits on day X are benchmarked on day X + 1.
     date_str = "20230205 (27874166a566a99beea5f)"
-    wall_data.append([date_str, 52.538, 49.370, 52.612])
+    wall_data.append([row[0], row[1], row[2], row[3]])
     memory_data.append(
-        [date_str, 136.02, 136.00, 136.02])
+        [row[0], row[1], row[2], row[3]])
+    # wall_data.append([date_str, 52.538, 49.370, 52.612])
+    # memory_data.append(
+    #     [date_str, 136.02, 136.00, 136.02])
 
   return wall_data, memory_data
 
@@ -741,8 +753,8 @@ def _generate_report_for_date(project, date, storage_bucket, report_name,
   if upload_report:
     _upload_to_storage(report_tmp_file, storage_bucket,
                        dated_subdir + "/{}.html".format(report_name))
-  else:
-    print(content)
+  # else:
+  #   print(content)
 
 
 def main(args=None):
@@ -782,7 +794,7 @@ def main(args=None):
   date = (
       datetime.datetime.strptime(parsed_args.date, "%Y-%m-%d").date()
       if parsed_args.date else datetime.date.today())
-  print("====> date:", date)
+  # print("====> date:", date)
 
   if parsed_args.bigquery_table is not None:
     bq_project, bq_table = parsed_args.bigquery_table.split(":")

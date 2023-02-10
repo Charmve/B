@@ -7,10 +7,16 @@
 # Author   :Wei ZHANG                                   #
 #########################################################
 
-set -euo pipefail
+# set -euo pipefail
 
 QCRAFT_TOP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 QBUILD_TOP_DIR="$QCRAFT_TOP_DIR/qbuild"
+
+# shellcheck disable=SC1090,SC1091
+. "${QCRAFT_TOP_DIR}/scripts/shflags"
+
+DEFINE_boolean 'incremental' "${FLAGS_FALSE}" 'If you want to do incremental unit-test/benchmark build, set flag to true'
+
 # shellcheck disable=SC1090
 source "${QCRAFT_TOP_DIR}/scripts/qcraft_base.sh"
 source "${QBUILD_TOP_DIR}/scripts/qbuild_base.sh"
@@ -24,6 +30,7 @@ DOCS_URL="https://qcraft.feishu.cn/docx/Vo6GdVCDqow0v5xX5RkcxBTXnQb"
 j5_bionic_container_name="j5"
 QBUILD_LOG_FILE="$QBUILD_TOP_DIR/tmp/qbuild_log.txt"
 QBUILD_FAILED_MANIFEST="$QBUILD_TOP_DIR/tmp/fail_manifest.txt"
+RUN_OUTPUT_FILE="$QBUILD_TOP_DIR/tmp/run_output_$(date "+%Y%m%d_%H%M%S").txt"
 QBUILD_UNITTEST_REPORT="$QBUILD_TOP_DIR/result/qbuild_unittest_result.txt"
 QBUILD_RELEASE_DIR="$QBUILD_TOP_DIR/release"
 RELEASE_J5_BUILD="${QCRAFT_TOP_DIR}/docker/release/j5/BUILD"
@@ -141,7 +148,7 @@ function connect_to_target_platform() {
     local platform
     if [ -z "$1" ]; then
         # shellcheck disable=SC2162
-        read -p "Please input your choice (j5_1/j5_2/j5_v/x9hp, ref ssh_config): " platform
+        read -p "Please input your choice (j5_1/j5_2/j5_v/x9hp/x9u, ref ssh_config): " platform
     else
         platform="$1"
     fi
@@ -164,8 +171,10 @@ function connect_to_target_platform() {
         fi
     elif [[ "$platform" == "x9hp" ]]; then
         sshpass -p "$X9HP_PASSWORD" ssh $platform
+    elif [[ "$platform" == "x9u" ]]; then
+        sshpass -p "$X9HP_PASSWORD" ssh $platform
     else
-        error "Input platform params '$@' is invalid. Please input your choice (j5_1/j5_2/j5_v/x9hp, ref ssh_config). \n"
+        error "Input platform params '$@' is invalid. Please input your choice (j5_1/j5_2/j5_v/x9hp/x9u, ref ssh_config). \n"
         exit 1
     fi
 }
@@ -202,7 +211,7 @@ EOF
   if [[ "$1" == "j5" ]]; then
       info "Install ${MODULE_BINARY_NAME} for $1 ..."
       source "${QBUILD_TOP_DIR}/scripts/make_j5_release.sh"
-  elif [[ "$1" == "x9hp" ]]; then
+  elif [[ "$1" == "x9hp" || "$1" == "x9u" ]]; then
       info "Install ${MODULE_BINARY_NAME} for $1 ..."
       source "${QBUILD_TOP_DIR}/scripts/make_x9hp_release.sh"
   else
@@ -239,8 +248,14 @@ function deploy_module_in_lab() {
             src_file=${src_file#*${src_file:0:8}}
         # elif [[ $src_file == ./* ]] || [[ ! -e $src_file ]]; then
         elif [[ $src_file == ./* ]]; then
-    	    error "qbuild: $src_file is not available."
+    	      error "qbuild: $src_file is not available."
             exit 1
+        elif [[ $src_file == //* ]]; then
+            # bazel build revert to dir pattern
+            # eg: '//qbuild/examples/hiqcraft:hiqcraft’ --> 'qbuild/examples/hiqcraft/hiqcraft'
+            src_file=${src_file/:/\/} # replace ':' with '/'
+            src_file=${src_file/\/\//} 
+            ## second method:  sed 's/hduser302/hdpusr400/g'
         elif [[ $src_file == *.* ]]; then
             warning "cp or rsync file by: "
             echo "    scp /qcraft/qbuild/examples/hiqcraft/readme.txt j5_1:/userdata"
@@ -286,9 +301,14 @@ function deploy_module_in_lab() {
             TARGET_PLATFORM=$1
             info "Deploy ${MODULE_BINARY} to ${TARGET_PLATFORM} at ${DIR_PATH}."
             sshpass -p ${X9HP_PASSWORD} ssh x9hp "mkdir -p ${DIR_PATH}"
-            scp -r ${MODULE_BINARY} ${TARGET_PLATFORM}:${DIR_PATH}
+            sshpass -p ${X9HP_PASSWORD} scp -r ${MODULE_BINARY} ${TARGET_PLATFORM}:${DIR_PATH}
+        elif [[ "$1" == "x9u" ]]; then
+            TARGET_PLATFORM=$1
+            info "Deploy ${MODULE_BINARY} to ${TARGET_PLATFORM} at ${DIR_PATH}."
+            sshpass -p ${X9HP_PASSWORD} ssh x9u "mkdir -p ${DIR_PATH}"
+            sshpass -p ${X9HP_PASSWORD} scp -r ${MODULE_BINARY} ${TARGET_PLATFORM}:${DIR_PATH}
         else
-            warning "qbuild: '-d, --deploy' support j5_1/j5_2/j5_v/x9hp, $1 is not available."
+            warning "qbuild: '-d, --deploy' support j5_1/j5_2/j5_v/x9hp/x9u, $1 is not available."
         fi
     else
         error "qbuild: '--deploy $@' is not a qbuild command. See 'qbuild --deploy'."
@@ -317,16 +337,16 @@ function pull_file_from_obc() {
             error "Remote dir must be absolute path."
             exit 1
         fi
-        if [ $target_platform == "j5_1" ] || [ $target_platform == "j5_2" ] || [ $target_platform == "x9hp" ]; then
+        if [ $target_platform == "j5_1" ] || [ $target_platform == "j5_2" ] || [ $target_platform == "x9hp" ] || [ $target_platform == "x9u" ]; then
             scp $target_platform:$remote_path $local_path
         elif [ $target_platform == "j5_v" ]; then
             docker cp $j5_bionic_container_name:$remote_path $local_path
         else
-            error "$1 is not platform, j5_1/j5_2/j5_v/x9hp is aavailable."
+            error "$1 is not platform, j5_1/j5_2/j5_v/x9hp/x9u is aavailable."
             exit 1
         fi
     elif [ ! $1 ]; then
-        error "$1 is not platform, j5_1/j5_2/j5_v/x9hp is aavailable."
+        error "$1 is not platform, j5_1/j5_2/j5_v/x9hp/x9u is aavailable."
         exit 1
     elif [[ ! $2  || $2 != /* ]]; then
         error "The remote path $2 is not correct or null, which may not be absolute path."
@@ -386,6 +406,11 @@ function run_module_in_lab() {
         info "Run ${MODULE_BINARY} in $1 ..."
         # sshpass -p ${X9HP_PASSWORD} ssh x9hp echo "Hello, I'm x9hp there!"  ## just for test
         sshpass -p ${X9HP_PASSWORD} ssh x9hp "$run_cmd"
+    elif [[ "$1" == "x9u" ]]; then
+        info "Run ${MODULE_BINARY} in $1 ..."
+        # sshpass -p ${X9HP_PASSWORD} ssh x9u echo "Hello, I'm x9u there!"  ## just for test
+        info "Result saved at $RUN_OUTPUT_FILE."
+        sshpass -p ${X9HP_PASSWORD} ssh x9u "$run_cmd" 2>&1 | tee $RUN_OUTPUT_FILE
     else
         error "Platform $1 is not available!"
         exit 1
@@ -531,15 +556,29 @@ function qbuild_run_module_binary() {
     if [[ $1 && $2 ]]; then
         platform=$1
         module_name=$2
-
+        
         if [ -d "$module_name" ]; then
             error "qbuild: $module_name must be a module name, not a dir.\n"
             qbuild_usage --run
             exit 1
-        elif [ ! -e "$module_name.cc" ]; then
-            error "qbuild: $module_name is not a unit test.\n"
-            qbuild_usage --run
+        # elif [ ! -e "$module_name.cc" ]; then
+        #     error "qbuild: $module_name is not a unit test.\n"
+        #     qbuild_usage --run
+        #     exit 1
+        fi
+
+        if [[ $module_name == /qcraft* ]]; then
+            src_file=${module_name#*${module_name:0:8}}
+        # elif [[ $src_file == ./* ]] || [[ ! -e $src_file ]]; then
+        elif [[ $module_name == ./* ]]; then
+    	      error "qbuild: $module_name is not available."
             exit 1
+        elif [[ $module_name == //* ]]; then
+            # bazel build revert to dir pattern
+            # eg: '//qbuild/examples/hiqcraft:hiqcraft’ --> 'qbuild/examples/hiqcraft/hiqcraft'
+            module_name=${module_name/:/\/} # replace ':' with '/'
+            module_name=${module_name/\/\//} 
+            ## second method:  sed 's/hduser302/hdpusr400/g'
         fi
 
         is_in_white_list "$module_name" && warning "qbuild: $module_name need input params in runtime, will jump this time."
@@ -550,7 +589,7 @@ function qbuild_run_module_binary() {
         info "Start run $module_name at $platform"
         run_module_in_lab $platform "$module_name" "/qcraft"
     elif [ ! $1 ]; then
-        error "$1 is not platform, j5_1/j5_2/j5_v/x9hp is available."
+        error "$1 is not platform, j5_1/j5_2/j5_v/x9hp/x9u is available."
         exit 1
     elif [ ! $2 ]; then
         error "The module binary name $2 is not correct or null"
@@ -669,7 +708,7 @@ function make_coverage_report() {
 
 function incremental_ut() {
     echo "On branch ${GREEN}$(git rev-parse --abbrev-ref HEAD)${NO_COLOR}"
-    echo "Changes not staged for commit:"
+    info "qbuild: changes not staged for commit:"
     git diff --ignore-submodules --diff-filter=d --name-only
 
     run_increase_file2target
@@ -791,7 +830,7 @@ function parse_cmdline_args() {
         exit 0
         ;;
       -t | --test)
-        echo "Start qbuild unit test ... "
+        info "Start qbuild unit test ... "
         cd $QBUILD_TOP_DIR/tests && ./qbuild_test.sh
         exit 0
         ;;
@@ -800,6 +839,7 @@ function parse_cmdline_args() {
             qbuild_usage --unittest
             exit 1
         fi
+
         qbuild_run_module_binary $@
         exit 0
         ;;
@@ -816,9 +856,22 @@ function parse_cmdline_args() {
             qbuild_usage --coverage
             exit 1
         fi
-        # make_coverage_report $@ &> $QBUILD_LOG_FILE 
-        make_coverage_report $@ | tee -a $QBUILD_LOG_FILE 
-        exit 0
+
+        # Parse the command-line.
+        FLAGS "$@" || exit 1
+        eval set -- "${FLAGS_ARGV}"
+        # echo $@ $0 $1
+
+        # if [ "${FLAGS_incremental}" -eq ${FLAGS_TRUE} ]; then
+        if [[ $1 == *incre* ]]; then 
+          info "qbuild: Start qbuild incremental unit-testing ... "
+          incremental_ut
+          exit 0
+        else
+          # make_coverage_report $@ &> $QBUILD_LOG_FILE 
+          make_coverage_report $@ | tee -a $QBUILD_LOG_FILE 
+          exit 0
+        fi
         ;;
       -pf | --perf)
         if [[ $# == 0 ]]; then
@@ -867,7 +920,6 @@ function parse_cmdline_args() {
 }
 
 function main() {
-
   INODE_NUM=`ls -ali / | sed '2!d' | awk {'print $1'}`
   if [ $INODE_NUM == '2' ]; then
       error "qbuild: need run in qcraft_cross_compile_j5 docker container."

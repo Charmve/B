@@ -2,13 +2,12 @@
 
 BenchRT means benchmarking regression testting or benchmark runtime in real-world device.
 
-
-
 ## Features
 
-- QBuild: provide run-time pipeline
-- support cross-platform, multi-platform
-- 
+- QBuild: provide cross-platform run-time pipeline
+- Support cross-platform, multi-platform
+- Automated testing at scale
+- Report automated make, alter
 
 ## Quick start
 
@@ -130,3 +129,4 @@ source $HOME/.bashrc
 ``
 docker build -t charmve/j5-bionic-qemu-20221230_0011:v1 -f j5-qemu.aarch64.dockerfile 
 ``
+

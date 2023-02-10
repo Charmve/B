@@ -112,7 +112,7 @@ function gtest_dependency_check_for_dir() {
 #   Bazel target list
 ####################################################
 function find_file_bazel_dependency() {
-    info "Hello find_file_bazel_dependency"
+    # info "Hello find_file_bazel_dependency"
     local file_name=$1
     local bazel_target_name=""
 
@@ -124,15 +124,15 @@ function find_file_bazel_dependency() {
         return
     fi
     
-    info "B - file_name: ${file_name}"
+    info "A - file_name: ${file_name}"
     base_file_name=$(basename $file_name)
     dir_name=$(dirname $file_name)
     info "dir_name: $dir_name"
     file_name=$(basename $file_name | awk -F '.' '{print $1}')
-    info "A - file_name: $file_name"
+    info "B - file_name: $file_name"
 
     local bazel_target_name=""
-    package_contains_file=$(bazel query $dir_name"/"$file_name --output=package)
+    package_contains_file=$(bazel query //$dir_name":"$file_name --output=package)
     info "package_contains_file: $package_contains_file"
     bazel_target_name=$(grep -C 5 $file_name $package_contains_file/BUILD | grep 'name' | awk -F '= "' '{print $2}' | awk -F '",' '{print $1}' | uniq -u)
 
@@ -145,7 +145,7 @@ function find_file_bazel_dependency() {
         if [[ "$bazel_target_name" == "$item_target" ]]; then
             ok "be the same."
         else
-            warning "${BOLD}Not same${NO_COLOR}. bazel_target_name1:$bazel_target_name, bazel_target_name:$item_target"
+            warning "${BOLD}Not same${NO_COLOR}. bazel_target_name1: $bazel_target_name, bazel_target_name: $item_target"
         fi
     done
 
@@ -155,7 +155,7 @@ function find_file_bazel_dependency() {
 }
 
 function find_build_target_bazel_dependency() {
-    echo "go into find_build_target_bazel_dependency"
+    # echo "go into find_build_target_bazel_dependency"
     if [[ $# == 0 ]]; then
         error "Need a bazel target name, like '//onboard/lite:lite_timer'."
         # usage
@@ -167,18 +167,19 @@ function find_build_target_bazel_dependency() {
 }
 
 function find_depend_target_by_file() {
-    echo "Hello! find_depend_target_by_file"
+    # echo "Hello! find_depend_target_by_file"
     local _file_name=$1
 
     echo -e "\n1 =========> _file_name: $_file_name"
     bazel_target_name=$(find_file_bazel_dependency $_file_name)
     echo "2 =========> bazel_target_name: $bazel_target_name"
-    [ ! $bazel_target_name ] && continue
-    for _target_name in ${bazel_target_name[@]}
-    do
-        echo "3 =========> _target_name: $_target_name"
-        find_build_target_bazel_dependency $_target_name
-    done
+    if [[ ! $bazel_target_name ]]; then
+      for _target_name in ${bazel_target_name[@]}
+      do
+          echo "3 =========> _target_name: $_target_name"
+          find_build_target_bazel_dependency $_target_name
+      done
+    fi
 }
 
 function run_increase_file2target() {
@@ -186,22 +187,22 @@ function run_increase_file2target() {
 
   for one_change in "${changed_files[@]}"; do
     if [[ "${one_change}" == *".proto" ]]; then
-        echo "this feature is comming ..."
+        warning "this feature is comming ..."
     fi
 
     # file_base_name=$(basename $_file_name)
     # echo "file_base_name: $file_base_name"
-    echo "=====> _file_name: $one_change"
+    # echo "=====> _file_name: $one_change"
     
     if [[ $one_change == *.cc || $one_change == *.h ]]; then
         [[ $one_change == *.cc ]] && bazel_target_name=${one_change%.cc*}${one_change##*.cc} # || warning "qbuild: only support C"
         [[ $one_change == *.h ]] && bazel_target_name=${one_change%.h*}${one_change##*.h} # || warning "qbuild: only support C"
-        info "$bazel_target_name"
+        info "bazel build module_name: $bazel_target_name"
         if [[ $bazel_target_name == *_test ]]; then
-            echo "run $bazel_target_name on j5."
+            info "qbuild: run $bazel_target_name on j5."
             qbuild --run j5 $bazel_target_name
         else
-            find_depend_target_by_file ${one_change}
+            find_depend_target_by_file ${bazel_target_name}
         fi
     fi
   done

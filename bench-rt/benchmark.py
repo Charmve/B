@@ -243,6 +243,7 @@ def subprocess_popen(statement):
 
 def _single_run(bazel_bin_path,
                 command,
+                platform,
                 options,
                 targets,
                 startup_options):
@@ -271,7 +272,10 @@ def _single_run(bazel_bin_path,
   #logger.log_warn("---> startup_options: %s" % startup_options)
   # bazel_bin_path = subprocess_popen("which bazel")[0] # _exec_command is optional
   # logger.log_warn("---> reset bazel_bin_path to : %s" % bazel_bin_path)
-  bazel = Bazel(bazel_bin_path, startup_options)
+  if platform == 'j5' or  platform == 'x9hp':
+    bazel_bin_path = 'qbuild'
+  
+  bazel = Bazel(bazel_bin_path, startup_options, platform)
 
   default_arguments = collections.defaultdict(list)
 
@@ -301,6 +305,7 @@ def _run_benchmark(bazel_bin_path,
                    project_path,
                    runs,
                    command,
+                   platform,
                    options,
                    targets,
                    startup_options,
@@ -330,19 +335,19 @@ def _run_benchmark(bazel_bin_path,
     project_commit: the commit hash of the project commit. Required if
       collect_profile.
 
-  Returns:
+  Returnsc
     A list of result objects from each _single_run.
   """
   collected = []
   os.chdir(project_path)
 
-  logger.log('=== BENCHMARKING BAZEL [Unit #%d]: %s, PROJECT: %s ===' %
-             (unit_num, bazel_identifier, project_commit))
+  logger.log('=== BENCHMARKING %s for %s [Unit #%d]: %s, PROJECT: %s ===' %
+             (project_path, platform, unit_num, bazel_identifier, project_commit))
   # Runs the command once to make sure external dependencies are fetched.
   if prefetch_ext_deps:
     logger.log('Pre-fetching external dependencies...')
-    project_run_result=_single_run(bazel_bin_path, command, options, targets, startup_options)
-    # print("\n====> project_run_result: ", project_run_result)
+    _single_run(bazel_bin_path, command, platform, options, targets, startup_options)
+    logger.log('Pre-fetching end.')
 
   if collect_profile:
     if not os.path.exists(data_directory):
@@ -352,7 +357,7 @@ def _run_benchmark(bazel_bin_path,
     logger.log('Starting benchmark run %s/%s:' % (i, runs))
 
     maybe_include_json_profile_flags = options[:]
-    if collect_profile:
+    if collect_profile and platform != 'j5':
       assert bazel_identifier, ('bazel_identifier is required when '
                                 'collect_profile')
       assert project_commit, ('project_commit is required when '
@@ -368,7 +373,7 @@ def _run_benchmark(bazel_bin_path,
               total_runs=runs,
           ))
     collected.append(
-        _single_run(bazel_bin_path, command, maybe_include_json_profile_flags,
+        _single_run(bazel_bin_path, command, platform, maybe_include_json_profile_flags,
                     targets, startup_options))
 
   return collected, (command, targets, options)
@@ -491,9 +496,6 @@ def create_summary(data, project_source):
       else:
         pval = ''
         mean_diff = median_diff = '         '
-      # print("\n===========> \n     pval:" , pval)
-      # print("    mean_diff:", mean_diff)
-      # print("    median_diff:" , median_diff)
 
       summary_builder.append(
           '%s: %s %s %s %s' %
@@ -683,8 +685,7 @@ def main(argv):
       unit['bazel_bin_path'] = unit['bazel_binary']
     elif 'bazel_commit' in unit:
       bazel_bin_path = subprocess_popen("which bazel")[0] # _exec_command is optional
-# bazel_bin_path = _exec_command('which bazel')
-# bazel_bin_path = "/home/qcraft/.bazel-bench/bazel-bin/ace99b575fe1e43f7591b75cf5d1c867175f9980/bazel"
+      # bazel_bin_path = _exec_command('which bazel')
       # bazel_bin_path = _build_bazel_binary(unit['bazel_commit'],
       #                                     bazel_clone_repo,
       #                                     bazel_bin_base_path, FLAGS.platform)
@@ -694,17 +695,18 @@ def main(argv):
     bazel_identifier = unit['bazel_commit'] if 'bazel_commit' in unit else unit['bazel_binary']
     project_commit = unit['project_commit']
 
-# project_clone_repo.git.checkout('-f', project_commit)
+    # project_clone_repo.git.checkout('-f', project_commit)
     if unit['env_configure'] is not None:
       _exec_command(
           unit['env_configure'], shell=True, cwd=project_clone_repo.working_dir)
 
     results, args = _run_benchmark(
         bazel_bin_path=unit['bazel_bin_path'],
-# project_path=project_clone_repo.working_dir,
+        # project_path=project_clone_repo.working_dir,
         project_path=project_clone_repo,
         runs=unit['runs'],
         command=unit['command'],
+        platform=FLAGS.platform,
         options=unit['options'],
         targets=unit['targets'],
         startup_options=unit['startup_options'],
@@ -715,6 +717,9 @@ def main(argv):
         data_directory=data_directory,
         bazel_identifier=bazel_identifier,
         project_commit=project_commit)
+    if FLAGS.platform == 'j5':
+      return 0
+    
     collected = {} #collections.defaultdict(dic)
     # collected.setdefault('started_at', {}).setdefault('city', {})['down'] = "wang"
     # print("\nbenchmarking_result:")
@@ -729,13 +734,7 @@ def main(argv):
         collected[metric].add(value)
         # print("collected[%s].values: " % metric, collected[metric].values())
 
-    # print("\n###### collected:")
-    # print(collected)
-    # for collected_item in collected: 
-    #    print(collected_item)
-
     data[(i, bazel_identifier, project_commit)] = collected
-    # print("\n###### data:" , data)
     non_measurables = {
       'project_source': unit['project_source'],
       'platform': FLAGS.platform,

@@ -80,8 +80,5 @@ print(subprocess_popen("hyperfine --runs 5 'cd /qcraft/qbuild/examples/hiqcraft 
 
 
 
-
-
-
 # print(_exec_command(['cd /qcraft/qbuild/examples/hiqcraft', ' && ./hiqcraft']))
 # print(_exec_command(['hyperfine', '--runs 10', './bazel-bin/qbuild/examples/hiqcraft/hiqcraft']))

@@ -25,11 +25,14 @@ function get_all_build_targets() {
   cd /qcraft || exit
   info "filter_pat: $filter_pat"
   bazel query //onboard/... | grep "$filter_pat$" > $build_files
+  bazel query //offboard/... | grep "$filter_pat$" >> $build_files
+  bazel query //cyber/... | grep "$filter_pat$" >> $build_files
+  bazel query //release/... | grep "$filter_pat$" >> $build_files
   cd -
 }
 
 get_all_build_targets bm
-
+exit 0
 _bazel_command=$1 
 
 for build_file in `cat $build_files`

@@ -32,9 +32,10 @@ class Bazel(object):
       /dev/null if not set explicitly.
   """
 
-  def __init__(self, bazel_binary_path, startup_options):
+  def __init__(self, bazel_binary_path, startup_options, platform):
     self._bazel_binary_path = str(bazel_binary_path)
     self._startup_options = startup_options
+    self._platform = platform
     self._pid = None
 
   def command(self, command, args=None):
@@ -52,44 +53,59 @@ class Bazel(object):
       Returns None instead if the command equals 'shutdown'.
     """
     args = args or []
-    logger.log('Executing Bazel command: bazel %s %s %s' %
-               (' '.join(self._startup_options), command, ' '.join(args)))
-
     result = dict()
-    result['started_at'] = datetime.datetime.utcnow()
 
-    before_times = self._get_times()
     dev_null = open(os.devnull, 'w')
     exit_status = 0
 
-    try:
-      print("\n===> self._bazel_binary_path: ", self._bazel_binary_path)
-      # print(self._bazel_binary_path, self._startup_options, command, args)
-      subprocess.check_call(
-          [self._bazel_binary_path] + self._startup_options + [command] + args,
-          stdout=dev_null,
-          stderr=dev_null)
-    except subprocess.CalledProcessError as e:
-      # print("     output:", e.output)
-      # print("     stdout:", e.stdout)
-      # print("     stderr:", e.stderr)
-      # print("     cmd:", e.cmd )
-      exit_status = e.returncode
-      logger.log_error('Bazel command failed with exit code %s' % e.returncode)
-
-    if command == 'shutdown':
+    if self._platform == 'j5': ##  or 'x9' in self._platform:
+      #self._bazel_binary_path = 'qbuild'
+      if command == 'run':
+        command='--run'
+      else:
+        return None
+      logger.log('Executing Bazel command: %s %s %s %s %s' %
+             (self._bazel_binary_path, ' '.join(self._startup_options), command, self._platform, args[2]))
+      # print(self._bazel_binary_path, command, self._platform, args[2])
+      # print([self._bazel_binary_path, self._startup_options, command, self._platform, args[2]])
+      try:
+        subprocess.check_call(
+            [self._bazel_binary_path, command, self._platform, args[2]])
+      except subprocess.CalledProcessError as e:
+        exit_status = e.returncode
+        logger.log_error('QBuild command failed with exit code %s' % e.returncode)
+      
       return None
-    after_times = self._get_times()
 
-    for kind in ['wall', 'cpu', 'cpu_user', 'cpu_system']:
-      result[kind] = after_times[kind] - before_times[kind]
-      print("%s: " % kind, result[kind])
-    result['exit_status'] = exit_status
+    else:
+      result['started_at'] = datetime.datetime.utcnow()
+      before_times = self._get_times()
 
-    # We do a number of runs here to reduce the noise in the data.
-    result['memory'] = min([self._get_heap_size() for _ in range(5)])
+      logger.log('Executing Bazel command: bazel %s %s %s' %
+             (' '.join(self._startup_options), command, ' '.join(args)))
+      # print([self._bazel_binary_path] + self._startup_options + [command] + args)
+      try:
+        subprocess.check_call(
+            [self._bazel_binary_path] + self._startup_options + [command] + args,
+            stdout=dev_null,
+            stderr=dev_null)
+      except subprocess.CalledProcessError as e:
+        exit_status = e.returncode
+        logger.log_error('Bazel command failed with exit code %s' % e.returncode)
+    
+      if command == 'shutdown':
+        return None
+      after_times = self._get_times()
 
-    return result
+      for kind in ['wall', 'cpu', 'cpu_user', 'cpu_system']:
+        result[kind] = after_times[kind] - before_times[kind]
+        # print("%s: " % kind, result[kind])
+      result['exit_status'] = exit_status
+
+      # We do a number of runs here to reduce the noise in the data.
+      result['memory'] = min([self._get_heap_size() for _ in range(5)])
+
+      return result
 
   def _get_pid(self):
     """Returns the pid of the server.
@@ -111,6 +127,9 @@ class Bazel(object):
     # probably should make it configurable.
     process_data = psutil.Process(pid=self._get_pid())
     cpu_times = process_data.cpu_times()
+
+    # refe: https://psutil.readthedocs.io/en/latest/#processes
+    # https://github1s.com/giampaolo/psutil/blob/master/psutil/_pslinux.py#L586-L587
     print("====> cpu_time:", time.process_time())
     print("====> cpu_num:", process_data.cpu_num())
 

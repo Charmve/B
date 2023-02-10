@@ -35,6 +35,18 @@ Host j5_2_4
     IdentityFile ~/.ssh/id_ed25519
     ProxyCommand ssh suzhou_QTB0004 -W %h:%p
 
+# 跳板机
+Host Jumper
+    HostName 172.20.253.34
+    User qcraft
+    IdentityFile ~/.ssh/id_ed25519
+
+Host x9u
+    HostName 192.168.5.213
+    User root
+    IdentityFile ~/.ssh/id_ed25519
+    ProxyCommand ssh Jumper -W %h:%p
+
 
 # gateway machine, don't use to do any real work
 Host suzhou_QTB0001
@@ -69,6 +81,12 @@ Host j5_1
 
 Host j5_2
     HostName 192.168.5.211
+    User root
+    IdentityFile ~/.ssh/id_ed25519
+    ProxyCommand ssh suzhou_QTB0001 -W %h:%
+
+Host j5_dev
+    HostName 192.168.5.55
     User root
     IdentityFile ~/.ssh/id_ed25519
     ProxyCommand ssh suzhou_QTB0001 -W %h:%p

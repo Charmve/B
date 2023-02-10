@@ -1217,3 +1217,5 @@ Sun Jan 15 16:44:28 CST 2023
 
 [34m[1mAll done![0m ✨ 🍰 ✨
 Wed Feb 1 12:04:22 CST 2023
+       ✅ The unit test pass rate is [0;34m[1m%[0m under 'onboard/lite/runner/'. TOTAL_TESTS: [1m0[0m, PASSED_TESTS: [32m0[0m, FAILED_TEST_COUNT: [0;31m0[0m
+
