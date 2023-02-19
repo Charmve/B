@@ -16,8 +16,8 @@ jobs:
     - name: Env setup
       runs-on: ubuntu-latest
       image: ${ALIYUN_GLOBAL_IMG}
-      script:
-        - dev/env_setup.sh
+      run: |
+        dev/env_setup.sh
     
     - name: bench-rt-schedule
       extends: g-bazel-test-presubmit-edge
@@ -28,10 +28,10 @@ jobs:
         ENABLE_BUILDFARM: 1
       rules:
         - !reference [.mr_rule_templates, nightly_test_rule]
-      script:
-        - echo "bazel benchmark regression testing"
-        - goto x86
-        - BenchRT/run_benchmark.sh "x86"
+      run: |
+        echo "bazel benchmark regression testing"
+        goto x86
+        BenchRT/run_benchmark.sh "x86"
       interruptible: true
       tags:
         - k8s-ack-cn-cpu-large

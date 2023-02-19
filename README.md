@@ -21,7 +21,7 @@ qbuild --help
 # eg:qbuild --benchmark j5 onboard/logging/logging_bm
 ```
 
-![image](https://user-images.githubusercontent.com/29084184/219936570-c25ed0d4-f588-4e43-bcb7-f5597e7e5ba0.png)
+[![image](https://user-images.githubusercontent.com/29084184/219936570-c25ed0d4-f588-4e43-bcb7-f5597e7e5ba0.png)](https://asciinema.org/a/k0rFmkO8EZCwn6hj8KEzZuCzL)
 
 演示链接：https://asciinema.org/a/k0rFmkO8EZCwn6hj8KEzZuCzL
 
@@ -133,7 +133,7 @@ j5-无对应bm：
 
 ## Setup runtime environment
 
-docs: https://charmve.feishu.cn/docx/X7pAdGBsloYTM5xZrIAcnmfpntg
+docs: docs/ARM64编译环境搭建-以J5为例.docx
 
 
 ### multi-platform switch 'goto x' 
@@ -176,6 +176,6 @@ source $HOME/.bashrc
 ### setup virtual hb-j5 environment
  
 ``
-docker build -t charmve/j5-bionic-qemu-20221230_0011:v1 -f j5-qemu.aarch64.dockerfile 
+docker build -t charmve/j5-bionic-qemu-20221230_0011:v1 -f dev/j5-qemu.aarch64.dockerfile 
 ``
 
