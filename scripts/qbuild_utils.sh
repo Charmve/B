@@ -15,26 +15,18 @@ QBUILD_TOP_DIR="$QCRAFT_TOP_DIR/qbuild"
 
 # shellcheck disable=SC1090,SC1091
 source "${QCRAFT_TOP_DIR}/scripts/qcraft_base.sh"
+# shellcheck disable=SC1090,SC1091
 source "${QBUILD_TOP_DIR}/scripts/qbuild_base.sh"
 source "${QCRAFT_TOP_DIR}/tools/eg/check_gtest_deps.sh"
 
-####################################################
-# Find some file from a input dir
-# Arguments:
-#   a dir (str)
-# Returns:
-#   file lists
-####################################################
-function read_dir_to_get_file_name() {
-  for file in $( #注意此处这是两个反引号，表示运行系统命令
-    ls $1
-  ); do
-    if [ -d $1"/"$file ]; then #注意此处之间一定要加上空格，否则会报错
-      read_dir_to_get_file_name $1"/"$file
-    else
-      echo $1"/"$file #在此处处理文件即可
-    fi
-  done
+function install_google_cli() {
+  curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-416.0.0-linux-x86_64.tar.gz
+
+  tar -xf google-cloud-cli-416.0.0-linux-x86_64.tar.gz
+  ./google-cloud-sdk/install.sh
+  ./google-cloud-sdk/bin/gcloud init
+
+  rm -rf google-cloud-cli-416.0.0-linux-x86_64.tar.gz
 }
 
 function _is_target_testonly() {
@@ -72,6 +64,7 @@ function gtest_dependency_check_for_dir() {
   local dir="$1"
   local recursive="${2:-false}"
 
+  # shellcheck disable=SC2034
   local readonly NON_TEST_CC_PATTERNS=(
     "%cc_library"
     "%cc_binary"
@@ -110,72 +103,106 @@ function gtest_dependency_check_for_dir() {
 #   Bazel target list
 ####################################################
 function find_file_bazel_dependency() {
-  # info "Hello find_file_bazel_dependency"
   local file_name=$1
   local bazel_target_name=""
-
-  # [[ $file_name == *.cc ]] && bazel_target_name=${file_name%.cc*}${file_name##*.cc} # || warning "qbuild: only support C"
-  # [[ $file_name == *.h ]] && bazel_target_name=${file_name%.h*}${file_name##*.h} # || warning "qbuild: only support C"
-  # info "$bazel_target_name"
 
   if [[ $file_name == *BUILD* ]]; then
     return
   fi
 
-  info "A - file_name: ${file_name}"
-  base_file_name=$(basename $file_name)
-  dir_name=$(dirname $file_name)
-  info "dir_name: $dir_name"
-  file_name=$(basename $file_name | awk -F '.' '{print $1}')
-  info "B - file_name: $file_name"
+  # base_file_name=$(basename "$file_name")
+  dir_name=$(dirname "$file_name")
+  file_name=$(basename "$file_name" | awk -F '.' '{print $1}')
 
-  local bazel_target_name=""
-  package_contains_file=$(bazel query //$dir_name":"$file_name --output=package)
-  info "package_contains_file: $package_contains_file"
-  bazel_target_name=$(grep -C 5 $file_name $package_contains_file/BUILD | grep 'name' | awk -F '= "' '{print $2}' | awk -F '",' '{print $1}' | uniq -u)
+  package_contains_file=$(bazel query //"$dir_name"":""$file_name" --output=package)
+  bazel_target_name=$(grep -C 5 "$file_name" "$package_contains_file"/BUILD | grep 'name' | awk -F '= "' '{print $2}' | awk -F '",' '{print $1}' | uniq -u)
 
   local target_names=()
+  # shellcheck disable=SC2068
   for item_target in ${bazel_target_name[@]}; do
     target_names+=("//$package_contains_file:$item_target")
+    # echo ${target_names[*]}
     # target_names+=("$(buildozer 'print label' $package_contains_file:$item_target")
-    info "bazel_target_name: ${item_target}"
-    if [[ "$bazel_target_name" == "$item_target" ]]; then
-      ok "be the same."
-    else
-      warning "${BOLD}Not same${NO_COLOR}. bazel_target_name1: $bazel_target_name, bazel_target_name: $item_target"
-    fi
+    # info "bazel_target_name: ${item_target}"
+    # if [[ "$bazel_target_name" == "$item_target" ]]; then
+    #     ok "be the same."
+    # else
+    #     warning "${BOLD}Not same${NO_COLOR}. bazel_target_name1: $bazel_target_name, bazel_target_name: $item_target"
+    # fi
   done
 
-  bazel_target_name=${target_names[*]}
-
-  echo "${bazel_target_name[*]}"
+  echo "${target_names[@]}"
 }
 
 function find_build_target_bazel_dependency() {
-  # echo "go into find_build_target_bazel_dependency"
   if [[ $# == 0 ]]; then
     error "Need a bazel target name, like '//onboard/lite:lite_timer'."
-    # usage
     exit 1
   fi
   local bazel_target_name="$1"
-  echo "local bazel_target_name: $bazel_target_name"
-  bazel query "somepath(//offboard/..., $bazel_target_name)"
+  local result=()
+  if [[ $bazel_target_name == *offboard* ]]; then
+    result+=("$(bazel query "somepath(//offboard/..., $bazel_target_name)")")
+  fi
+  if [[ $bazel_target_name == *onboard* ]]; then
+    result+=("$(bazel query "somepath(//onboard/..., $bazel_target_name)")")
+    # bazel query "allpaths(//onboard/..., $bazel_target_name)" --notool_deps # --output graph
+  fi
+
+  echo "${result[@]}"
+}
+
+function isInArray() {
+  if [[ $# -lt 2 ]]; then
+    echo '0'
+    exit 1
+  fi
+
+  array=$1
+  val=$2
+
+  for i in "${array[@]}"; do
+    [ "$i" == "$val" ] && echo '1' && exit 0
+  done
+
+  echo '0'
 }
 
 function find_depend_target_by_file() {
-  # echo "Hello! find_depend_target_by_file"
-  local _file_name=$1
+  local full_file_name=$1
+  local dependent_build_targets=()
 
-  echo -e "\n1 =========> _file_name: $_file_name"
-  bazel_target_name=$(find_file_bazel_dependency $_file_name)
-  echo "2 =========> bazel_target_name: $bazel_target_name"
-  if [[ ! $bazel_target_name ]]; then
-    for _target_name in ${bazel_target_name[@]}; do
-      echo "3 =========> _target_name: $_target_name"
-      find_build_target_bazel_dependency $_target_name
+  bazel_target_name=$(find_file_bazel_dependency "$full_file_name")
+
+  # shellcheck disable=SC2048
+  for _target_name in ${bazel_target_name[*]}; do
+    # echo "_target_name: $_target_name"
+    bazel_dependency=$(find_build_target_bazel_dependency "$_target_name")
+    # shellcheck disable=SC2048
+    for depend_target in ${bazel_dependency[*]}; do
+      # echo "   depend_target: $depend_target"
+
+      if [[ ${#dependent_build_targets[@]} -lt 1 ]]; then
+        # echo "is null"
+        dependent_build_targets+=("${depend_target}")
+      else
+        # echo "is not null"
+
+        # for i in ${dependent_build_targets[@]}
+        # do
+        #   echo "aaaaaaa: $i"
+        # done
+
+        if [[ "$(isInArray "${dependent_build_targets[*]}" "$depend_target")" == '0' ]]; then
+          # echo "$depend_target not exists"
+          dependent_build_targets+=("${depend_target}")
+        # else
+        #   # echo "$depend_target exists"
+        fi
+      fi
     done
-  fi
+  done
+  echo "${dependent_build_targets[*]}"
 }
 
 function run_increase_file2target() {
@@ -196,22 +223,12 @@ function run_increase_file2target() {
       info "bazel build module_name: $bazel_target_name"
       if [[ $bazel_target_name == *_test ]]; then
         info "qbuild: run $bazel_target_name on j5."
-        qbuild --run j5 $bazel_target_name
+        qbuild --run j5 "$bazel_target_name"
       else
-        find_depend_target_by_file ${bazel_target_name}
+        find_depend_target_by_file "${bazel_target_name}"
       fi
     fi
   done
-}
-
-function install_google_cli() {
-  curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-416.0.0-linux-x86_64.tar.gz
-
-  tar -xf google-cloud-cli-416.0.0-linux-x86_64.tar.gz
-  ./google-cloud-sdk/install.sh
-  ./google-cloud-sdk/bin/gcloud init
-
-  rm -rf google-cloud-cli-416.0.0-linux-x86_64.tar.gz
 }
 
 # function main() {

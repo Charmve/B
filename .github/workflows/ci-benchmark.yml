@@ -1,0 +1,37 @@
+
+name: "Bench-RT"
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    # The branches below must be a subset of the branches above
+    branches: [ main ]
+
+jobs:
+  bench-rt-schedule:
+    name: Benchmarking regression test
+    runs-on: ubuntu-latest
+    steps:
+    - name: Env setup
+      runs-on: ubuntu-latest
+      image: ${ALIYUN_GLOBAL_IMG}
+      script:
+        - dev/env_setup.sh
+    
+    - name: bench-rt-schedule
+      extends: g-bazel-test-presubmit-edge
+      stage: core
+      image: ${ALIYUN_GLOBAL_IMG}
+      variables:
+        CACHE_TEST_RESULT_OPTION: "--nocache_test_results"
+        ENABLE_BUILDFARM: 1
+      rules:
+        - !reference [.mr_rule_templates, nightly_test_rule]
+      script:
+        - echo "bazel benchmark regression testing"
+        - goto x86
+        - BenchRT/run_benchmark.sh "x86"
+      interruptible: true
+      tags:
+        - k8s-ack-cn-cpu-large

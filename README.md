@@ -21,6 +21,10 @@ qbuild --help
 # eg:qbuild --benchmark j5 onboard/logging/logging_bm
 ```
 
+![image](https://user-images.githubusercontent.com/29084184/219936570-c25ed0d4-f588-4e43-bcb7-f5597e7e5ba0.png)
+
+演示链接：https://asciinema.org/a/k0rFmkO8EZCwn6hj8KEzZuCzL
+
 ## Usage
 
 ### qbuild
@@ -63,6 +67,12 @@ Run 'qbuild COMMAND' for more information on a command.
 Visit https://qcraft.feishu.cn/docx/Vo6GdVCDqow0v5xX5RkcxBTXnQb to get more information and push issues.
 ```
 
+结果展示：
+
+onboard/lite 路径下 单元测试结果
+
+![image](https://user-images.githubusercontent.com/29084184/219936651-ed6d306e-b789-44d5-9a48-0fe31f545ff7.png)
+
 ### bench-rt
 
 ```bash
@@ -77,10 +87,49 @@ bazel run :benchmark -- --bazel_commits=fffc26b5cc1bbe6c977af9971ed21e2e3d275d28
 bazel run :benchmark -- --bazel_commits=fffc26b5cc1bbe6c977af9971ed21e2e3d275d28,25be21130ba774e9f02cc39a010aafe64a3ab245 --project_source=/charmve/ --project_commits=6dd9685b9e --platform=$1 --project_label=dev-test  -- run  --verbose_failures onboard/math/fast_math_bm
 
 
-
 bazel run report:generate_report --  --storage_bucket=0.0.0.0:8000/bazel-bench/bazel-bench-data --project=bazel-bench-test
 
 ```
+
+结果展示：
+
+- x86-有对应bm：
+
+![image](https://user-images.githubusercontent.com/29084184/219936292-56333dba-14fb-4436-a175-f4bb97c097d0.png)
+
+![image](https://user-images.githubusercontent.com/29084184/219936285-5ce45b39-e1f3-47e4-b396-c31aeee3df47.png)
+
+
+- x86-无对应bm：
+
+pre-run一次，再统计连续跑5次作为最终结果。
+
+![image](https://user-images.githubusercontent.com/29084184/219936283-80244727-c66d-434f-99d1-981da7f57098.png)
+
+![image](https://user-images.githubusercontent.com/29084184/219936274-b9181d66-78ec-4514-8ec3-1c80baca30c9.png)
+
+
+收集汇总所有的json-profile文件：
+``bazel run :benchmark -- --bazel_commits=fffc26b5cc1bbe6c977af9971ed21e2e3d275d28,25be21130ba774e9f02cc39a010aafe64a3ab245 --project_source=/qcraft/ --project_commits=6dd9685b9e --platform=x86 --project_label=dev-test  --collect_profile=True --aggregate_json_profiles=True -- run  --verbose_failures //qbuild/examples/hiqcraft:hiqcraft``
+
+- j5-有对应bm：
+
+qbuild --run <platform>
+
+![image](https://user-images.githubusercontent.com/29084184/219936266-7496818d-768f-48c4-b896-f1591ded519e.png)
+
+
+j5-无对应bm：
+
+![image](https://user-images.githubusercontent.com/29084184/219936257-0c61d4a9-c718-4cf1-957f-bef3c07d7550.png)
+
+
+## Profiling
+
+[Build performance metrics](https://blog.bazel.build/2022/11/15/build-performance-metrics.html)
+
+![image](https://user-images.githubusercontent.com/29084184/219936441-85e68619-8f29-433e-90d3-c0f8d457ef8f.png)
+
 
 ## Setup runtime environment
 
