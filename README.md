@@ -67,11 +67,28 @@ Run 'qbuild COMMAND' for more information on a command.
 Visit https://qcraft.feishu.cn/docx/Vo6GdVCDqow0v5xX5RkcxBTXnQb to get more information and push issues.
 ```
 
-结果展示：
+#### 使用方法：
+进入 X-Compiler docker 容器中，直接qbuild命令可以看到整个工具的usage，都有交互提示。
+
+1. Update to latest master 
+2. ./scripts/start_cross_compile_docker.sh --project j5 --office suzhou
+3. ./scripts/goto_cross_compile_docker.sh --project j5
+4. export PATH=${PATH}:/qcraft/qbuild
+5. qbuild --init
+6. Find qbuild usages qbuild --help
+7. 命令输入每一个都会有检查和使用提示，如：qbuild --run、qbuild --build 
+
+#### 结果展示
 
 onboard/lite 路径下 单元测试结果
 
 ![image](https://user-images.githubusercontent.com/29084184/219936651-ed6d306e-b789-44d5-9a48-0fe31f545ff7.png)
+
+#### TO-DO
+- --perf 模块级别的profile性能分析
+- --install 打包方式
+- 需要稳定的台架资源
+- 命令自动补全
 
 ### bench-rt
 
@@ -92,6 +109,11 @@ bazel run report:generate_report --  --storage_bucket=0.0.0.0:8000/bazel-bench/b
 ```
 
 结果展示：
+
+- ci 自动化评测
+
+![image](https://user-images.githubusercontent.com/29084184/231991735-4e4a7263-5b01-465d-9cfc-7fcde9573a58.png)
+
 
 - x86-有对应bm：
 
